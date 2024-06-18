@@ -158,7 +158,8 @@ class MainWindow(QtWidgets.QMainWindow):
         fileListWidget.setLayout(fileListLayout)
         self.file_dock.setWidget(fileListWidget)
 
-        self.zoomWidget = ZoomWidget()
+        self.xZoomWidget = ZoomWidget()
+        self.yZoomWidget = ZoomWidget()
         self.setAcceptDrops(True)
 
         self.canvas = self.labelList.canvas = Canvas(
@@ -369,11 +370,13 @@ class MainWindow(QtWidgets.QMainWindow):
             enabled=False,
         )
         createAiPolygonMode.changed.connect(
-            lambda: self.canvas.initializeAiModel(
-                name=self._selectAiModelComboBox.currentText()
+            lambda: (
+                self.canvas.initializeAiModel(
+                    name=self._selectAiModelComboBox.currentText()
+                )
+                if self.canvas.createMode == "ai_polygon"
+                else None
             )
-            if self.canvas.createMode == "ai_polygon"
-            else None
         )
         createAiMaskMode = action(
             self.tr("Create AI-Mask"),
@@ -384,11 +387,13 @@ class MainWindow(QtWidgets.QMainWindow):
             enabled=False,
         )
         createAiMaskMode.changed.connect(
-            lambda: self.canvas.initializeAiModel(
-                name=self._selectAiModelComboBox.currentText()
+            lambda: (
+                self.canvas.initializeAiModel(
+                    name=self._selectAiModelComboBox.currentText()
+                )
+                if self.canvas.createMode == "ai_mask"
+                else None
             )
-            if self.canvas.createMode == "ai_mask"
-            else None
         )
         editMode = action(
             self.tr("Edit Polygons"),
@@ -489,15 +494,25 @@ class MainWindow(QtWidgets.QMainWindow):
             tip=self.tr("Show tutorial page"),
         )
 
-        zoom = QtWidgets.QWidgetAction(self)
-        zoomBoxLayout = QtWidgets.QVBoxLayout()
-        zoomLabel = QtWidgets.QLabel("Zoom")
-        zoomLabel.setAlignment(Qt.AlignCenter)
-        zoomBoxLayout.addWidget(zoomLabel)
-        zoomBoxLayout.addWidget(self.zoomWidget)
-        zoom.setDefaultWidget(QtWidgets.QWidget())
-        zoom.defaultWidget().setLayout(zoomBoxLayout)
-        self.zoomWidget.setWhatsThis(
+        xZoom = QtWidgets.QWidgetAction(self)
+        xZoomBoxLayout = QtWidgets.QVBoxLayout()
+        xZoomLabel = QtWidgets.QLabel("ZoomX")
+        xZoomLabel.setAlignment(Qt.AlignCenter)
+        xZoomBoxLayout.addWidget(xZoomLabel)
+        xZoomBoxLayout.addWidget(self.xZoomWidget)
+        xZoom.setDefaultWidget(QtWidgets.QWidget())
+        xZoom.defaultWidget().setLayout(xZoomBoxLayout)
+
+        yZoom = QtWidgets.QWidgetAction(self)
+        yZoomBoxLayout = QtWidgets.QVBoxLayout()
+        yZoomLabel = QtWidgets.QLabel("ZoomY")
+        yZoomLabel.setAlignment(Qt.AlignCenter)
+        yZoomBoxLayout.addWidget(yZoomLabel)
+        yZoomBoxLayout.addWidget(self.yZoomWidget)
+        yZoom.setDefaultWidget(QtWidgets.QWidget())
+        yZoom.defaultWidget().setLayout(yZoomBoxLayout)
+
+        self.xZoomWidget.setWhatsThis(
             str(
                 self.tr(
                     "Zoom in or out of the image. Also accessible with "
@@ -510,11 +525,26 @@ class MainWindow(QtWidgets.QMainWindow):
                 utils.fmtShortcut(self.tr("Ctrl+Wheel")),
             )
         )
-        self.zoomWidget.setEnabled(False)
+        self.xZoomWidget.setEnabled(False)
+
+        self.yZoomWidget.setWhatsThis(
+            str(
+                self.tr(
+                    "Zoom in or out of the image. Also accessible with "
+                    "{} and {} from the canvas."
+                )
+            ).format(
+                utils.fmtShortcut(
+                    "{},{}".format(shortcuts["zoom_in"], shortcuts["zoom_out"])
+                ),
+                utils.fmtShortcut(self.tr("Ctrl+Wheel")),
+            )
+        )
+        self.yZoomWidget.setEnabled(False)
 
         zoomIn = action(
             self.tr("Zoom &In"),
-            functools.partial(self.addZoom, 1.1),
+            functools.partial(self.addZoom, (1.1, 1.1)),
             shortcuts["zoom_in"],
             "zoom-in",
             self.tr("Increase zoom level"),
@@ -522,7 +552,7 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         zoomOut = action(
             self.tr("&Zoom Out"),
-            functools.partial(self.addZoom, 0.9),
+            functools.partial(self.addZoom, (0.9, 0.9)),
             shortcuts["zoom_out"],
             "zoom-out",
             self.tr("Decrease zoom level"),
@@ -572,7 +602,8 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         # Group zoom controls into a list for easier toggling.
         zoomActions = (
-            self.zoomWidget,
+            self.xZoomWidget,
+            self.yZoomWidget,
             zoomIn,
             zoomOut,
             zoomOrg,
@@ -585,7 +616,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.FIT_WINDOW: self.scaleFitWindow,
             self.FIT_WIDTH: self.scaleFitWidth,
             # Set to one to scale to 100% when loading files.
-            self.MANUAL_ZOOM: lambda: 1,
+            self.MANUAL_ZOOM: lambda: (1, 1),
         }
 
         edit = action(
@@ -643,7 +674,8 @@ class MainWindow(QtWidgets.QMainWindow):
             createLineStripMode=createLineStripMode,
             createAiPolygonMode=createAiPolygonMode,
             createAiMaskMode=createAiMaskMode,
-            zoom=zoom,
+            xZoom=xZoom,
+            yZoom=yZoom,
             zoomIn=zoomIn,
             zoomOut=zoomOut,
             zoomOrg=zoomOrg,
@@ -798,31 +830,30 @@ class MainWindow(QtWidgets.QMainWindow):
             model_index = 0
         self._selectAiModelComboBox.setCurrentIndex(model_index)
         self._selectAiModelComboBox.currentIndexChanged.connect(
-            lambda: self.canvas.initializeAiModel(
-                name=self._selectAiModelComboBox.currentText()
+            lambda: (
+                self.canvas.initializeAiModel(
+                    name=self._selectAiModelComboBox.currentText()
+                )
+                if self.canvas.createMode in ["ai_polygon", "ai_mask"]
+                else None
             )
-            if self.canvas.createMode in ["ai_polygon", "ai_mask"]
-            else None
         )
 
         self.tools = self.toolbar("Tools")
         self.actions.tool = (
             open_,
             opendir,
-            openPrevImg,
-            openNextImg,
-            save,
             deleteFile,
             None,
             createMode,
             editMode,
             duplicate,
             delete,
-            undo,
             brightnessContrast,
             None,
             fitWindow,
-            zoom,
+            xZoom,
+            yZoom,
             None,
             selectAiModel,
         )
@@ -884,7 +915,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.queueEvent(functools.partial(self.loadFile, self.filename))
 
         # Callbacks:
-        self.zoomWidget.valueChanged.connect(self.paintCanvas)
+        self.xZoomWidget.valueChanged.connect(self.paintCanvas)
+        self.yZoomWidget.valueChanged.connect(self.paintCanvas)
 
         self.populateModeActions()
 
@@ -1435,30 +1467,48 @@ class MainWindow(QtWidgets.QMainWindow):
         self.actions.fitWidth.setChecked(False)
         self.actions.fitWindow.setChecked(False)
         self.zoomMode = self.MANUAL_ZOOM
-        self.zoomWidget.setValue(value)
+        self.xZoomWidget.setValue(value[0])
+        self.yZoomWidget.setValue(value[1])
         self.zoom_values[self.filename] = (self.zoomMode, value)
 
-    def addZoom(self, increment=1.1):
-        zoom_value = self.zoomWidget.value() * increment
-        if increment > 1:
-            zoom_value = math.ceil(zoom_value)
-        else:
-            zoom_value = math.floor(zoom_value)
+    def addZoom(self, increment=(1.1, 1.1)):
+        zoom_value = [
+            self.xZoomWidget.value() * increment[0],
+            self.yZoomWidget.value() * increment[1],
+        ]
+        for i in range(2):
+            if increment[i] > 1:
+                zoom_value[i] = math.ceil(zoom_value[i])
+            else:
+                zoom_value[i] = math.floor(zoom_value[i])
+
         self.setZoom(zoom_value)
 
-    def zoomRequest(self, delta, pos):
-        canvas_width_old = self.canvas.width()
-        units = 1.1
-        if delta < 0:
+    def zoomRequest(self, delta, pos, direction):
+        width_old = self.canvas.width()
+        height_old = self.canvas.height()
+
+        if delta > 0:
+            units = 1.1
+        elif delta < 0:
             units = 0.9
-        self.addZoom(units)
+        else:
+            units = 1
+        increment = [1, 1]
+        if direction["x"]:
+            increment[0] = units
+        if direction["y"]:
+            increment[1] = units
+        self.addZoom(increment)
 
-        canvas_width_new = self.canvas.width()
-        if canvas_width_old != canvas_width_new:
-            canvas_scale_factor = canvas_width_new / canvas_width_old
+        width_new = self.canvas.width()
+        height_new = self.canvas.height()
 
-            x_shift = round(pos.x() * canvas_scale_factor) - pos.x()
-            y_shift = round(pos.y() * canvas_scale_factor) - pos.y()
+        if width_old != width_new or height_old != height_new:
+            scale_factor = (width_new / width_old, height_new / height_old)
+
+            x_shift = round(pos.x() * scale_factor[0]) - pos.x()
+            y_shift = round(pos.y() * scale_factor[1]) - pos.y()
 
             self.setScroll(
                 Qt.Horizontal,
@@ -1490,22 +1540,35 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def brightnessContrast(self, value):
         dialog = BrightnessContrastDialog(
-            utils.img_data_to_pil(self.imageData),
+            self.imageData,
             self.onNewBrightnessContrast,
             parent=self,
         )
-        brightness, contrast = self.brightnessContrast_values.get(
-            self.filename, (None, None)
+
+        log10, heatmap, min_value, max_value = self.brightnessContrast_values.get(
+            self.filename, (None, None, None, None)
         )
-        if brightness is not None:
-            dialog.slider_brightness.setValue(brightness)
-        if contrast is not None:
-            dialog.slider_contrast.setValue(contrast)
+        if log10 is not None:
+            dialog.log10_checkbox.setChecked(log10)
+        if heatmap is not None:
+            dialog.heatmap_checkbox.setChecked(heatmap)
+        if min_value is not None:
+            dialog.slider_min.setValue(min_value)
+        if max_value is not None:
+            dialog.slider_max.setValue(max_value)
+
         dialog.exec_()
 
-        brightness = dialog.slider_brightness.value()
-        contrast = dialog.slider_contrast.value()
-        self.brightnessContrast_values[self.filename] = (brightness, contrast)
+        log10 = dialog.log10_checkbox.isChecked()
+        heatmap = dialog.heatmap_checkbox.isChecked()
+        min_value = dialog.slider_min.value()
+        max_value = dialog.slider_max.value()
+        self.brightnessContrast_values[self.filename] = (
+            log10,
+            heatmap,
+            min_value,
+            max_value,
+        )
 
     def togglePolygons(self, value):
         flag = value
@@ -1563,25 +1626,20 @@ class MainWindow(QtWidgets.QMainWindow):
             self.otherData = self.labelFile.otherData
         else:
             self.imageData = LabelFile.load_image_file(filename)
-            if self.imageData:
+            if self.imageData is not None:
                 self.imagePath = filename
             self.labelFile = None
-        image = QtGui.QImage.fromData(self.imageData)
+        # image = QtGui.QImage.fromData(self.imageData)
+        image = utils.color_convert(self.imageData)
+        # numpy数据转换为QImage
+        image = image = QtGui.QImage(
+            image.tobytes(),
+            image.shape[1],
+            image.shape[0],
+            image.shape[1] * 3,
+            QtGui.QImage.Format_RGB888,
+        )
 
-        if image.isNull():
-            formats = [
-                "*.{}".format(fmt.data().decode())
-                for fmt in QtGui.QImageReader.supportedImageFormats()
-            ]
-            self.errorMessage(
-                self.tr("Error opening file"),
-                self.tr(
-                    "<p>Make sure <i>{0}</i> is a valid image file.<br/>"
-                    "Supported image formats: {1}</p>"
-                ).format(filename, ",".join(formats)),
-            )
-            self.status(self.tr("Error reading %s") % filename)
-            return False
         self.image = image
         self.filename = filename
         if self._config["keep_prev"]:
@@ -1614,28 +1672,35 @@ class MainWindow(QtWidgets.QMainWindow):
                 )
         # set brightness contrast values
         dialog = BrightnessContrastDialog(
-            utils.img_data_to_pil(self.imageData),
+            self.imageData,
             self.onNewBrightnessContrast,
             parent=self,
         )
-        brightness, contrast = self.brightnessContrast_values.get(
-            self.filename, (None, None)
+        log10, heatmap, min_value, max_value = self.brightnessContrast_values.get(
+            self.filename, (None, None, None, None)
         )
-        if self._config["keep_prev_brightness"] and self.recentFiles:
-            brightness, _ = self.brightnessContrast_values.get(
-                self.recentFiles[0], (None, None)
+        if self.recentFiles:
+            log10, heatmap, min_value, max_value = self.brightnessContrast_values.get(
+                self.recentFiles[0], (None, None, None, None)
             )
-        if self._config["keep_prev_contrast"] and self.recentFiles:
-            _, contrast = self.brightnessContrast_values.get(
-                self.recentFiles[0], (None, None)
-            )
-        if brightness is not None:
-            dialog.slider_brightness.setValue(brightness)
-        if contrast is not None:
-            dialog.slider_contrast.setValue(contrast)
-        self.brightnessContrast_values[self.filename] = (brightness, contrast)
-        if brightness is not None or contrast is not None:
+        if log10 is not None:
+            dialog.log10_checkbox.setChecked(log10)
+        if heatmap is not None:
+            dialog.heatmap_checkbox.setChecked(heatmap)
+        if min_value is not None:
+            dialog.slider_min.setValue(min_value)
+        if max_value is not None:
+            dialog.slider_max.setValue(max_value)
+
+        self.brightnessContrast_values[self.filename] = (
+            log10,
+            heatmap,
+            min_value,
+            max_value,
+        )
+        if any([v is not None for v in (log10, heatmap, min_value, max_value)]):
             dialog.onNewValue(None)
+
         self.paintCanvas()
         self.addRecentFile(self.filename)
         self.toggleActions(True)
@@ -1653,15 +1718,20 @@ class MainWindow(QtWidgets.QMainWindow):
         super(MainWindow, self).resizeEvent(event)
 
     def paintCanvas(self):
-        assert not self.image.isNull(), "cannot paint null image"
-        self.canvas.scale = 0.01 * self.zoomWidget.value()
+        if self.image.isNull():
+            return
+        self.canvas.scale = (
+            0.01 * self.xZoomWidget.value(),
+            0.01 * self.yZoomWidget.value(),
+        )
         self.canvas.adjustSize()
         self.canvas.update()
 
     def adjustScale(self, initial=False):
         value = self.scalers[self.FIT_WINDOW if initial else self.zoomMode]()
-        value = int(100 * value)
-        self.zoomWidget.setValue(value)
+        value = (int(value[0] * 100), int(value[1] * 100))
+        self.xZoomWidget.setValue(value[0])
+        self.yZoomWidget.setValue(value[1])
         self.zoom_values[self.filename] = (self.zoomMode, value)
 
     def scaleFitWindow(self):
@@ -1669,17 +1739,20 @@ class MainWindow(QtWidgets.QMainWindow):
         e = 2.0  # So that no scrollbars are generated.
         w1 = self.centralWidget().width() - e
         h1 = self.centralWidget().height() - e
-        a1 = w1 / h1
+
         # Calculate a new scale value based on the pixmap's aspect ratio.
-        w2 = self.canvas.pixmap.width() - 0.0
-        h2 = self.canvas.pixmap.height() - 0.0
-        a2 = w2 / h2
-        return w1 / w2 if a2 >= a1 else h1 / h2
+        w2 = self.canvas.pixmap.width()
+        h2 = self.canvas.pixmap.height()
+
+        return (w1 / w2, h1 / h2)
 
     def scaleFitWidth(self):
         # The epsilon does not seem to work too well here.
-        w = self.centralWidget().width() - 2.0
-        return w / self.canvas.pixmap.width()
+        e = 2.0
+        w1 = self.centralWidget().width() - e
+        w2 = self.canvas.pixmap.width()
+        h = self.centralWidget().width()
+        return (w1 / w2, (h - e) / h)
 
     def enableSaveImageWithData(self, enabled):
         self._config["store_data"] = enabled
@@ -1698,8 +1771,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def dragEnterEvent(self, event):
         extensions = [
-            ".%s" % fmt.data().decode().lower()
-            for fmt in QtGui.QImageReader.supportedImageFormats()
+            ".dat",
         ]
         if event.mimeData().hasUrls():
             items = [i.toLocalFile() for i in event.mimeData().urls()]
@@ -1778,10 +1850,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.mayContinue():
             return
         path = osp.dirname(str(self.filename)) if self.filename else "."
-        formats = [
-            "*.{}".format(fmt.data().decode())
-            for fmt in QtGui.QImageReader.supportedImageFormats()
-        ]
+        formats = ["*.dat"]
         filters = self.tr("Image & Label files (%s)") % " ".join(
             formats + ["*%s" % LabelFile.suffix]
         )
@@ -2033,10 +2102,7 @@ class MainWindow(QtWidgets.QMainWindow):
         return lst
 
     def importDroppedImageFiles(self, imageFiles):
-        extensions = [
-            ".%s" % fmt.data().decode().lower()
-            for fmt in QtGui.QImageReader.supportedImageFormats()
-        ]
+        extensions = [".dat"]
 
         self.filename = None
         for file in imageFiles:
@@ -2093,8 +2159,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def scanAllImages(self, folderPath):
         extensions = [
-            ".%s" % fmt.data().decode().lower()
-            for fmt in QtGui.QImageReader.supportedImageFormats()
+            ".dat",
         ]
 
         images = []

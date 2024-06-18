@@ -4,6 +4,7 @@ import io
 import json
 import os.path as osp
 
+import numpy as np
 import PIL.Image
 
 from labelme import PY2
@@ -45,25 +46,14 @@ class LabelFile(object):
     @staticmethod
     def load_image_file(filename):
         try:
-            image_pil = PIL.Image.open(filename)
+            img_data = np.fromfile(filename, dtype="<i2")
+            point_len = 111
+            img_data = img_data.reshape(-1, point_len).T
         except IOError:
-            logger.error("Failed opening image file: {}".format(filename))
+            logger.error("Failed opening data file: {}".format(filename))
             return
 
-        # apply orientation to image according to exif
-        image_pil = utils.apply_exif_orientation(image_pil)
-
-        with io.BytesIO() as f:
-            ext = osp.splitext(filename)[1].lower()
-            if PY2 and QT4:
-                format = "PNG"
-            elif ext in [".jpg", ".jpeg"]:
-                format = "JPEG"
-            else:
-                format = "PNG"
-            image_pil.save(f, format=format)
-            f.seek(0)
-            return f.read()
+        return img_data
 
     def load(self, filename):
         keys = [
@@ -88,18 +78,13 @@ class LabelFile(object):
             with open(filename, "r") as f:
                 data = json.load(f)
 
-            if data["imageData"] is not None:
-                imageData = base64.b64decode(data["imageData"])
-                if PY2 and QT4:
-                    imageData = utils.img_data_to_png_data(imageData)
-            else:
-                # relative path from label file to relative path from cwd
-                imagePath = osp.join(osp.dirname(filename), data["imagePath"])
-                imageData = self.load_image_file(imagePath)
+            # relative path from label file to relative path from cwd
+            imagePath = osp.join(osp.dirname(filename), data["imagePath"])
+            imageData = self.load_image_file(imagePath)
             flags = data.get("flags") or {}
             imagePath = data["imagePath"]
             self._check_image_height_and_width(
-                base64.b64encode(imageData).decode("utf-8"),
+                imageData,
                 data.get("imageHeight"),
                 data.get("imageWidth"),
             )
@@ -134,19 +119,18 @@ class LabelFile(object):
 
     @staticmethod
     def _check_image_height_and_width(imageData, imageHeight, imageWidth):
-        img_arr = utils.img_b64_to_arr(imageData)
-        if imageHeight is not None and img_arr.shape[0] != imageHeight:
+        if imageHeight is not None and imageData.shape[0] != imageHeight:
             logger.error(
                 "imageHeight does not match with imageData or imagePath, "
                 "so getting imageHeight from actual image."
             )
-            imageHeight = img_arr.shape[0]
-        if imageWidth is not None and img_arr.shape[1] != imageWidth:
+            imageHeight = imageData.shape[0]
+        if imageWidth is not None and imageData.shape[1] != imageWidth:
             logger.error(
                 "imageWidth does not match with imageData or imagePath, "
                 "so getting imageWidth from actual image."
             )
-            imageWidth = img_arr.shape[1]
+            imageWidth = imageData.shape[1]
         return imageHeight, imageWidth
 
     def save(
@@ -160,11 +144,6 @@ class LabelFile(object):
         otherData=None,
         flags=None,
     ):
-        if imageData is not None:
-            imageData = base64.b64encode(imageData).decode("utf-8")
-            imageHeight, imageWidth = self._check_image_height_and_width(
-                imageData, imageHeight, imageWidth
-            )
         if otherData is None:
             otherData = {}
         if flags is None:
@@ -174,7 +153,7 @@ class LabelFile(object):
             flags=flags,
             shapes=shapes,
             imagePath=imagePath,
-            imageData=imageData,
+            imageData=None,
             imageHeight=imageHeight,
             imageWidth=imageWidth,
         )

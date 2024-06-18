@@ -177,6 +177,13 @@ def main():
         win.settings.clear()
         sys.exit(0)
 
+    # 显示在屏幕中央
+    screen = QtWidgets.QDesktopWidget().screenGeometry()
+    size = win.geometry()
+    win.move(
+        (screen.width() - size.width()) // 2, (screen.height() - size.height()) // 2
+    )
+
     win.show()
     win.raise_()
     sys.exit(app.exec_())

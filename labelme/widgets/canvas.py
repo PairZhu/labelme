@@ -23,7 +23,7 @@ MOVE_SPEED = 5.0
 
 
 class Canvas(QtWidgets.QWidget):
-    zoomRequest = QtCore.Signal(int, QtCore.QPoint)
+    zoomRequest = QtCore.Signal(int, QtCore.QPoint, dict)
     scrollRequest = QtCore.Signal(int, int)
     newShape = QtCore.Signal()
     selectionChanged = QtCore.Signal(list)
@@ -34,7 +34,7 @@ class Canvas(QtWidgets.QWidget):
     CREATE, EDIT = 0, 1
 
     # polygon, rectangle, line, or point
-    _createMode = "polygon"
+    _createMode = "rectangle"
 
     _fill_drawing = False
 
@@ -76,7 +76,10 @@ class Canvas(QtWidgets.QWidget):
         self.prevPoint = QtCore.QPoint()
         self.prevMovePoint = QtCore.QPoint()
         self.offsets = QtCore.QPoint(), QtCore.QPoint()
-        self.scale = 1.0
+        self.scale = (
+            1.0,
+            1.0,
+        )
         self.pixmap = QtGui.QPixmap()
         self.visible = {}
         self._hideBackround = False
@@ -328,8 +331,14 @@ class Canvas(QtWidgets.QWidget):
         for shape in reversed([s for s in self.shapes if self.isVisible(s)]):
             # Look for a nearby vertex to highlight. If that fails,
             # check if we happen to be inside a shape.
-            index = shape.nearestVertex(pos, self.epsilon / self.scale)
-            index_edge = shape.nearestEdge(pos, self.epsilon / self.scale)
+            index = shape.nearestVertex(
+                pos,
+                self.epsilon,
+            )
+            index_edge = shape.nearestEdge(
+                pos,
+                self.epsilon,
+            )
             if index is not None:
                 if self.selectedVertex():
                     self.hShape.highlightClear()
@@ -436,9 +445,11 @@ class Canvas(QtWidgets.QWidget):
                 elif not self.outOfPixmap(pos):
                     # Create new shape.
                     self.current = Shape(
-                        shape_type="points"
-                        if self.createMode in ["ai_polygon", "ai_mask"]
-                        else self.createMode
+                        shape_type=(
+                            "points"
+                            if self.createMode in ["ai_polygon", "ai_mask"]
+                            else self.createMode
+                        )
                     )
                     self.current.addPoint(pos, label=0 if is_shift_pressed else 1)
                     if self.createMode == "point":
@@ -684,7 +695,7 @@ class Canvas(QtWidgets.QWidget):
         p.setRenderHint(QtGui.QPainter.HighQualityAntialiasing)
         p.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
 
-        p.scale(self.scale, self.scale)
+        p.scale(self.scale[0], self.scale[1])
         p.translate(self.offsetToCenter())
 
         p.drawPixmap(0, 0, self.pixmap)
@@ -782,15 +793,19 @@ class Canvas(QtWidgets.QWidget):
 
     def transformPos(self, point):
         """Convert from widget-logical coordinates to painter-logical ones."""
-        return point / self.scale - self.offsetToCenter()
+        # return point / self.scale - self.offsetToCenter()
+        return (
+            QtCore.QPointF(point.x() / self.scale[0], point.y() / self.scale[1])
+            - self.offsetToCenter()
+        )
 
     def offsetToCenter(self):
         s = self.scale
         area = super(Canvas, self).size()
-        w, h = self.pixmap.width() * s, self.pixmap.height() * s
+        w, h = self.pixmap.width() * s[0], self.pixmap.height() * s[1]
         aw, ah = area.width(), area.height()
-        x = (aw - w) / (2 * s) if aw > w else 0
-        y = (ah - h) / (2 * s) if ah > h else 0
+        x = (aw - w) / (2 * s[0]) if aw > w else 0
+        y = (ah - h) / (2 * s[1]) if ah > h else 0
         return QtCore.QPointF(x, y)
 
     def outOfPixmap(self, p):
@@ -839,7 +854,9 @@ class Canvas(QtWidgets.QWidget):
         # m = (p1-p2).manhattanLength()
         # print "d %.2f, m %d, %.2f" % (d, m, d - m)
         # divide by scale to allow more precision when zoomed in
-        return labelme.utils.distance(p1 - p2) < (self.epsilon / self.scale)
+        p1 = QtCore.QPointF(p1.x() * self.scale[0], p1.y() * self.scale[1])
+        p2 = QtCore.QPointF(p2.x() * self.scale[0], p2.y() * self.scale[1])
+        return labelme.utils.distance(p1 - p2) < self.epsilon
 
     def intersectionPoint(self, p1, p2):
         # Cycle through each image edge in clockwise fashion,
@@ -903,17 +920,26 @@ class Canvas(QtWidgets.QWidget):
 
     def minimumSizeHint(self):
         if self.pixmap:
-            return self.scale * self.pixmap.size()
+            size = self.pixmap.size()
+            return QtCore.QSize(
+                round(size.width() * self.scale[0]),
+                round(size.height() * self.scale[1]),
+            )
         return super(Canvas, self).minimumSizeHint()
 
     def wheelEvent(self, ev):
         if QT5:
             mods = ev.modifiers()
             delta = ev.angleDelta()
-            if QtCore.Qt.ControlModifier == int(mods):
-                # with Ctrl/Command key
+            if mods & (QtCore.Qt.ControlModifier | QtCore.Qt.ShiftModifier):
+                # with Ctrl/Command key or Shift key
                 # zoom
-                self.zoomRequest.emit(delta.y(), ev.pos())
+                direction = {"x": False, "y": False}
+                if mods & QtCore.Qt.ControlModifier:
+                    direction["x"] = True
+                if mods & QtCore.Qt.ShiftModifier:
+                    direction["y"] = True
+                self.zoomRequest.emit(delta.y(), ev.pos(), direction)
             else:
                 # scroll
                 self.scrollRequest.emit(delta.x(), QtCore.Qt.Horizontal)
@@ -921,15 +947,23 @@ class Canvas(QtWidgets.QWidget):
         else:
             if ev.orientation() == QtCore.Qt.Vertical:
                 mods = ev.modifiers()
-                if QtCore.Qt.ControlModifier == int(mods):
-                    # with Ctrl/Command key
-                    self.zoomRequest.emit(ev.delta(), ev.pos())
+                if mods & (QtCore.Qt.ControlModifier | QtCore.Qt.ShiftModifier):
+                    # with Ctrl/Command key or Shift key
+                    # zoom
+                    direction = {"x": False, "y": False}
+                    if mods & QtCore.Qt.ControlModifier:
+                        direction["x"] = True
+                    if mods & QtCore.Qt.ShiftModifier:
+                        direction["y"] = True
+                    self.zoomRequest.emit(ev.delta(), ev.pos(), direction)
                 else:
                     self.scrollRequest.emit(
                         ev.delta(),
-                        QtCore.Qt.Horizontal
-                        if (QtCore.Qt.ShiftModifier == int(mods))
-                        else QtCore.Qt.Vertical,
+                        (
+                            QtCore.Qt.Horizontal
+                            if (QtCore.Qt.AltModifier == int(mods))
+                            else QtCore.Qt.Vertical
+                        ),
                     )
             else:
                 self.scrollRequest.emit(ev.delta(), QtCore.Qt.Horizontal)
