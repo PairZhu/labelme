@@ -878,8 +878,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.otherData = None
         self.zoom_level = 100
         self.fit_window = False
-        self.zoom_values = {}  # key=filename, value=(zoom_mode, zoom_value)
-        self.brightnessContrast_values = {}
+        self.zoom_value = None  # (zoom_mode, zoom_value)
+        self.brightnessContrast_value = (None, None, None, None)
         self.scroll_values = {
             Qt.Horizontal: {},
             Qt.Vertical: {},
@@ -1469,7 +1469,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.zoomMode = self.MANUAL_ZOOM
         self.xZoomWidget.setValue(value[0])
         self.yZoomWidget.setValue(value[1])
-        self.zoom_values[self.filename] = (self.zoomMode, value)
+        self.zoom_value = (self.zoomMode, value)
 
     def addZoom(self, increment=(1.1, 1.1)):
         zoom_value = [
@@ -1545,9 +1545,7 @@ class MainWindow(QtWidgets.QMainWindow):
             parent=self,
         )
 
-        log10, heatmap, min_value, max_value = self.brightnessContrast_values.get(
-            self.filename, (None, None, None, None)
-        )
+        log10, heatmap, min_value, max_value = self.brightnessContrast_value
         if log10 is not None:
             dialog.log10_checkbox.setChecked(log10)
         if heatmap is not None:
@@ -1563,7 +1561,7 @@ class MainWindow(QtWidgets.QMainWindow):
         heatmap = dialog.heatmap_checkbox.isChecked()
         min_value = dialog.slider_min.value()
         max_value = dialog.slider_max.value()
-        self.brightnessContrast_values[self.filename] = (
+        self.brightnessContrast_value = (
             log10,
             heatmap,
             min_value,
@@ -1657,12 +1655,11 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.setClean()
         self.canvas.setEnabled(True)
-        # set zoom values
-        is_initial_load = not self.zoom_values
-        if self.filename in self.zoom_values:
-            self.zoomMode = self.zoom_values[self.filename][0]
-            self.setZoom(self.zoom_values[self.filename][1])
-        elif is_initial_load or not self._config["keep_prev_scale"]:
+        # set zoom value
+        if self.zoom_value:
+            self.zoomMode = self.zoom_value[0]
+            self.setZoom(self.zoom_value[1])
+        else:
             self.adjustScale(initial=True)
         # set scroll values
         for orientation in self.scroll_values:
@@ -1670,19 +1667,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.setScroll(
                     orientation, self.scroll_values[orientation][self.filename]
                 )
-        # set brightness contrast values
+        # set brightness contrast value
         dialog = BrightnessContrastDialog(
             self.imageData,
             self.onNewBrightnessContrast,
             parent=self,
         )
-        log10, heatmap, min_value, max_value = self.brightnessContrast_values.get(
-            self.filename, (None, None, None, None)
-        )
-        if self.recentFiles:
-            log10, heatmap, min_value, max_value = self.brightnessContrast_values.get(
-                self.recentFiles[0], (None, None, None, None)
-            )
+        log10, heatmap, min_value, max_value = self.brightnessContrast_value
         if log10 is not None:
             dialog.log10_checkbox.setChecked(log10)
         if heatmap is not None:
@@ -1692,7 +1683,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if max_value is not None:
             dialog.slider_max.setValue(max_value)
 
-        self.brightnessContrast_values[self.filename] = (
+        self.brightnessContrast_value = (
             log10,
             heatmap,
             min_value,
@@ -1732,7 +1723,7 @@ class MainWindow(QtWidgets.QMainWindow):
         value = (int(value[0] * 100), int(value[1] * 100))
         self.xZoomWidget.setValue(value[0])
         self.yZoomWidget.setValue(value[1])
-        self.zoom_values[self.filename] = (self.zoomMode, value)
+        self.zoom_value = (self.zoomMode, value)
 
     def scaleFitWindow(self):
         """Figure out the size of the pixmap to fit the main widget."""

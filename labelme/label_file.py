@@ -47,7 +47,8 @@ class LabelFile(object):
     def load_image_file(filename):
         try:
             img_data = np.fromfile(filename, dtype="<i2")
-            point_len = 111
+            filename = osp.splitext(filename)[0]
+            point_len = int(filename.split("_")[-1])
             img_data = img_data.reshape(-1, point_len).T
         except IOError:
             logger.error("Failed opening data file: {}".format(filename))
