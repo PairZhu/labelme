@@ -1,5 +1,3 @@
-import PIL.Image
-import PIL.ImageEnhance
 from qtpy import QtWidgets
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QImage
@@ -7,13 +5,13 @@ from qtpy.QtGui import QImage
 from labelme import utils
 
 
-class BrightnessContrastDialog(QtWidgets.QDialog):
+class ColorConvertDialog(QtWidgets.QDialog):
     MAX_VALUE = 10000
 
     def __init__(self, img, callback, parent=None):
-        super(BrightnessContrastDialog, self).__init__(parent)
+        super(ColorConvertDialog, self).__init__(parent)
         self.setModal(True)
-        self.setWindowTitle("Brightness/Contrast")
+        self.setWindowTitle("Color Convert")
 
         # checkbox
         check_log10 = QtWidgets.QCheckBox()

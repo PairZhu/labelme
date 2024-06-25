@@ -181,16 +181,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../app.py" line="247"/>
-        <source>Keep Previous Annotation</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../app.py" line="247"/>
-        <source>Toggle &quot;keep pevious annotation&quot; mode</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <location filename="../app.py" line="255"/>
         <source>Create Polygons</source>
         <translation type="unfinished"></translation>
@@ -411,6 +401,11 @@ Polygons</source>
     <message>
         <location filename="../app.py" line="364"/>
         <source>Zoom follows window width</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="365"/>
+        <source>&amp;Color Convert</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

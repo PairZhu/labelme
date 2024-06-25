@@ -7,6 +7,7 @@ import os
 import os.path as osp
 import re
 import webbrowser
+from datetime import datetime
 
 import imgviz
 import natsort
@@ -23,8 +24,9 @@ from labelme.label_file import LabelFile
 from labelme.label_file import LabelFileError
 from labelme.logger import logger
 from labelme.shape import Shape
-from labelme.widgets import BrightnessContrastDialog
+from labelme.widgets import ColorConvertDialog
 from labelme.widgets import Canvas
+from labelme.widgets import TimeLine
 from labelme.widgets import FileDialogPreview
 from labelme.widgets import LabelDialog
 from labelme.widgets import LabelListWidget
@@ -169,6 +171,7 @@ class MainWindow(QtWidgets.QMainWindow):
             crosshair=self._config["canvas"]["crosshair"],
         )
         self.canvas.zoomRequest.connect(self.zoomRequest)
+        self.canvas.mouseMoved.connect(self.showCursorPos)
 
         scrollArea = QtWidgets.QScrollArea()
         scrollArea.setWidget(self.canvas)
@@ -177,14 +180,26 @@ class MainWindow(QtWidgets.QMainWindow):
             Qt.Vertical: scrollArea.verticalScrollBar(),
             Qt.Horizontal: scrollArea.horizontalScrollBar(),
         }
+        scrollArea.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        scrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.canvas.scrollRequest.connect(self.scrollRequest)
+
+        scrollArea.horizontalScrollBar().valueChanged.connect(self.updateTimeLine)
 
         self.canvas.newShape.connect(self.newShape)
         self.canvas.shapeMoved.connect(self.setDirty)
         self.canvas.selectionChanged.connect(self.shapeSelectionChanged)
         self.canvas.drawingPolygon.connect(self.toggleDrawingSensitive)
 
-        self.setCentralWidget(scrollArea)
+        topLevelWidget = QtWidgets.QWidget(self)
+        layout = QtWidgets.QVBoxLayout(topLevelWidget)
+        layout.setSpacing(0)
+        timeLine = TimeLine()
+        layout.addWidget(timeLine)
+        layout.addWidget(scrollArea)
+        self.setCentralWidget(topLevelWidget)
+        self.scrollArea = scrollArea
+        self.timeLine = timeLine
 
         features = QtWidgets.QDockWidget.DockWidgetFeatures()
         for dock in ["flag_dock", "label_dock", "shape_dock", "file_dock"]:
@@ -302,16 +317,6 @@ class MainWindow(QtWidgets.QMainWindow):
             "close",
             "Close current file",
         )
-
-        toggle_keep_prev_mode = action(
-            self.tr("Keep Previous Annotation"),
-            self.toggleKeepPrevMode,
-            shortcuts["toggle_keep_prev_mode"],
-            None,
-            self.tr('Toggle "keep pevious annotation" mode'),
-            checkable=True,
-        )
-        toggle_keep_prev_mode.setChecked(self._config["keep_prev"])
 
         createMode = action(
             self.tr("Create Polygons"),
@@ -566,14 +571,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.tr("Zoom to original size"),
             enabled=False,
         )
-        keepPrevScale = action(
-            self.tr("&Keep Previous Scale"),
-            self.enableKeepPrevScale,
-            tip=self.tr("Keep previous zoom scale"),
-            checkable=True,
-            checked=self._config["keep_prev_scale"],
-            enabled=True,
-        )
         fitWindow = action(
             self.tr("&Fit Window"),
             self.setFitWindow,
@@ -592,12 +589,12 @@ class MainWindow(QtWidgets.QMainWindow):
             checkable=True,
             enabled=False,
         )
-        brightnessContrast = action(
-            "&Brightness Contrast",
-            self.brightnessContrast,
+        colorConvert = action(
+            self.tr("&Color Convert"),
+            self.colorConvert,
             None,
             "color",
-            "Adjust brightness and contrast",
+            "Adjust the rule of color convert",
             enabled=False,
         )
         # Group zoom controls into a list for easier toggling.
@@ -656,7 +653,6 @@ class MainWindow(QtWidgets.QMainWindow):
             open=open_,
             close=close,
             deleteFile=deleteFile,
-            toggleKeepPrevMode=toggle_keep_prev_mode,
             delete=delete,
             edit=edit,
             duplicate=duplicate,
@@ -679,10 +675,9 @@ class MainWindow(QtWidgets.QMainWindow):
             zoomIn=zoomIn,
             zoomOut=zoomOut,
             zoomOrg=zoomOrg,
-            keepPrevScale=keepPrevScale,
             fitWindow=fitWindow,
             fitWidth=fitWidth,
-            brightnessContrast=brightnessContrast,
+            colorConvert=colorConvert,
             zoomActions=zoomActions,
             openNextImg=openNextImg,
             openPrevImg=openPrevImg,
@@ -701,7 +696,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 None,
                 removePoint,
                 None,
-                toggle_keep_prev_mode,
             ),
             # menu shown at right click
             menu=(
@@ -734,7 +728,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 createAiPolygonMode,
                 createAiMaskMode,
                 editMode,
-                brightnessContrast,
+                colorConvert,
             ),
             onShapesPresent=(saveAs, hideAll, showAll, toggleAll),
         )
@@ -787,12 +781,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 zoomIn,
                 zoomOut,
                 zoomOrg,
-                keepPrevScale,
                 None,
                 fitWindow,
                 fitWidth,
                 None,
-                brightnessContrast,
+                colorConvert,
             ),
         )
 
@@ -845,11 +838,11 @@ class MainWindow(QtWidgets.QMainWindow):
             opendir,
             deleteFile,
             None,
-            createMode,
+            createRectangleMode,
             editMode,
             duplicate,
             delete,
-            brightnessContrast,
+            colorConvert,
             None,
             fitWindow,
             xZoom,
@@ -879,7 +872,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.zoom_level = 100
         self.fit_window = False
         self.zoom_value = None  # (zoom_mode, zoom_value)
-        self.brightnessContrast_value = (None, None, None, None)
+        self.colorConvert_value = (None, None, None, None)
         self.scroll_values = {
             Qt.Horizontal: {},
             Qt.Vertical: {},
@@ -918,11 +911,39 @@ class MainWindow(QtWidgets.QMainWindow):
         self.xZoomWidget.valueChanged.connect(self.paintCanvas)
         self.yZoomWidget.valueChanged.connect(self.paintCanvas)
 
+        self.xZoomWidget.valueChanged.connect(self.updateTimeLine)
+
         self.populateModeActions()
 
-        # self.firstStart = True
-        # if self.firstStart:
-        #    QWhatsThis.enterWhatsThisMode()
+    def updateTimeLine(self, _):
+        if not self.canvas.pixmap:
+            return
+        pixel_w = self.canvas.pixmap.width() * self.xZoomWidget.value() / 100
+        area_w = self.scrollArea.width() - self.scrollBars[Qt.Vertical].width() - 2
+        scale_x = pixel_w / area_w
+        if scale_x >= 1:
+            self.timeLine.offset = self.scrollBars[Qt.Horizontal].value() / pixel_w
+        else:
+            self.timeLine.offset = (pixel_w - area_w) / 2 / pixel_w
+        self.timeLine.area_width = area_w
+        self.timeLine.scale = scale_x
+        self.timeLine.update()
+
+    def showCursorPos(self, pos):
+        if self.timeLine.begin_time is None:
+            return
+        time_len = self.timeLine.end_time - self.timeLine.begin_time
+        time_stamp = (
+            int(
+                self.timeLine.begin_time
+                + time_len * pos.x() / self.canvas.pixmap.width()
+            )
+            / 1000
+        )
+        time_str = datetime.fromtimestamp(time_stamp).strftime("%Y-%m-%d_%H:%M:%S.%f")[
+            :-3
+        ]
+        self.status(f"T: {time_str}, Y: {int(pos.y())}")
 
     def menu(self, title, actions=None):
         menu = self.menuBar().addMenu(title)
@@ -1531,21 +1552,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.zoomMode = self.FIT_WIDTH if value else self.MANUAL_ZOOM
         self.adjustScale()
 
-    def enableKeepPrevScale(self, enabled):
-        self._config["keep_prev_scale"] = enabled
-        self.actions.keepPrevScale.setChecked(enabled)
-
-    def onNewBrightnessContrast(self, qimage):
+    def onNewColorConvert(self, qimage):
         self.canvas.loadPixmap(QtGui.QPixmap.fromImage(qimage), clear_shapes=False)
 
-    def brightnessContrast(self, value):
-        dialog = BrightnessContrastDialog(
+    def colorConvert(self, value):
+        dialog = ColorConvertDialog(
             self.imageData,
-            self.onNewBrightnessContrast,
+            self.onNewColorConvert,
             parent=self,
         )
 
-        log10, heatmap, min_value, max_value = self.brightnessContrast_value
+        log10, heatmap, min_value, max_value = self.colorConvert_value
         if log10 is not None:
             dialog.log10_checkbox.setChecked(log10)
         if heatmap is not None:
@@ -1561,7 +1578,7 @@ class MainWindow(QtWidgets.QMainWindow):
         heatmap = dialog.heatmap_checkbox.isChecked()
         min_value = dialog.slider_min.value()
         max_value = dialog.slider_max.value()
-        self.brightnessContrast_value = (
+        self.colorConvert_value = (
             log10,
             heatmap,
             min_value,
@@ -1617,17 +1634,20 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.status(self.tr("Error reading %s") % label_file)
                 return False
             self.imageData = self.labelFile.imageData
+            beginTime = self.labelFile.beginTime
+            endTime = self.labelFile.endTime
             self.imagePath = osp.join(
                 osp.dirname(label_file),
                 self.labelFile.imagePath,
             )
             self.otherData = self.labelFile.otherData
         else:
-            self.imageData = LabelFile.load_image_file(filename)
+            self.imageData, beginTime, endTime = LabelFile.load_image_file(filename)
             if self.imageData is not None:
                 self.imagePath = filename
             self.labelFile = None
         # image = QtGui.QImage.fromData(self.imageData)
+        self.timeLine.begin_time, self.timeLine.end_time = beginTime, endTime
         image = utils.color_convert(self.imageData)
         # numpy数据转换为QImage
         image = image = QtGui.QImage(
@@ -1640,8 +1660,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.image = image
         self.filename = filename
-        if self._config["keep_prev"]:
-            prev_shapes = self.canvas.shapes
         self.canvas.loadPixmap(QtGui.QPixmap.fromImage(image))
         flags = {k: False for k in self._config["flags"] or []}
         if self.labelFile:
@@ -1649,11 +1667,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if self.labelFile.flags is not None:
                 flags.update(self.labelFile.flags)
         self.loadFlags(flags)
-        if self._config["keep_prev"] and self.noShapes():
-            self.loadShapes(prev_shapes, replace=False)
-            self.setDirty()
-        else:
-            self.setClean()
+        self.setClean()
         self.canvas.setEnabled(True)
         # set zoom value
         if self.zoom_value:
@@ -1667,13 +1681,15 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.setScroll(
                     orientation, self.scroll_values[orientation][self.filename]
                 )
-        # set brightness contrast value
-        dialog = BrightnessContrastDialog(
+            else:
+                self.setScroll(orientation, 0)
+        # set color convert value
+        dialog = ColorConvertDialog(
             self.imageData,
-            self.onNewBrightnessContrast,
+            self.onNewColorConvert,
             parent=self,
         )
-        log10, heatmap, min_value, max_value = self.brightnessContrast_value
+        log10, heatmap, min_value, max_value = self.colorConvert_value
         if log10 is not None:
             dialog.log10_checkbox.setChecked(log10)
         if heatmap is not None:
@@ -1683,7 +1699,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if max_value is not None:
             dialog.slider_max.setValue(max_value)
 
-        self.brightnessContrast_value = (
+        self.colorConvert_value = (
             log10,
             heatmap,
             min_value,
@@ -1693,6 +1709,7 @@ class MainWindow(QtWidgets.QMainWindow):
             dialog.onNewValue(None)
 
         self.paintCanvas()
+        self.updateTimeLine(None)
         self.addRecentFile(self.filename)
         self.toggleActions(True)
         self.canvas.setFocus()
@@ -1727,9 +1744,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def scaleFitWindow(self):
         """Figure out the size of the pixmap to fit the main widget."""
-        e = 2.0  # So that no scrollbars are generated.
-        w1 = self.centralWidget().width() - e
-        h1 = self.centralWidget().height() - e
+        w1 = self.scrollArea.width() - self.scrollBars[Qt.Vertical].width() - 2
+        h1 = self.scrollArea.height() - self.scrollBars[Qt.Horizontal].height() - 2
 
         # Calculate a new scale value based on the pixmap's aspect ratio.
         w2 = self.canvas.pixmap.width()
@@ -1739,11 +1755,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def scaleFitWidth(self):
         # The epsilon does not seem to work too well here.
-        e = 2.0
-        w1 = self.centralWidget().width() - e
+        w1 = self.scrollArea.width() - self.scrollBars[Qt.Vertical].width() - 2
         w2 = self.canvas.pixmap.width()
-        h = self.centralWidget().width()
-        return (w1 / w2, (h - e) / h)
+        h = self.scrollArea.width()
+        return (w1 / w2, 1)
 
     def enableSaveImageWithData(self, enabled):
         self._config["store_data"] = enabled
@@ -1785,12 +1800,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.loadFile(filename)
 
     def openPrevImg(self, _value=False):
-        keep_prev = self._config["keep_prev"]
-        if QtWidgets.QApplication.keyboardModifiers() == (
-            Qt.ControlModifier | Qt.ShiftModifier
-        ):
-            self._config["keep_prev"] = True
-
         if not self.mayContinue():
             return
 
@@ -1806,15 +1815,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if filename:
                 self.loadFile(filename)
 
-        self._config["keep_prev"] = keep_prev
-
     def openNextImg(self, _value=False, load=True):
-        keep_prev = self._config["keep_prev"]
-        if QtWidgets.QApplication.keyboardModifiers() == (
-            Qt.ControlModifier | Qt.ShiftModifier
-        ):
-            self._config["keep_prev"] = True
-
         if not self.mayContinue():
             return
 
@@ -1834,8 +1835,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if self.filename and load:
             self.loadFile(self.filename)
-
-        self._config["keep_prev"] = keep_prev
 
     def openFile(self, _value=False):
         if not self.mayContinue():
@@ -2023,9 +2022,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def currentPath(self):
         return osp.dirname(str(self.filename)) if self.filename else "."
-
-    def toggleKeepPrevMode(self):
-        self._config["keep_prev"] = not self._config["keep_prev"]
 
     def removeSelectedPoint(self):
         self.canvas.removeSelectedPoint()

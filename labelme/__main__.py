@@ -92,12 +92,6 @@ def main():
         default=argparse.SUPPRESS,
     )
     parser.add_argument(
-        "--keep-prev",
-        action="store_true",
-        help="keep annotation of previous frame",
-        default=argparse.SUPPRESS,
-    )
-    parser.add_argument(
         "--epsilon",
         type=float,
         help="epsilon to find nearest vertex on canvas",
@@ -177,12 +171,8 @@ def main():
         win.settings.clear()
         sys.exit(0)
 
-    # 显示在屏幕中央
-    screen = QtWidgets.QDesktopWidget().screenGeometry()
-    size = win.geometry()
-    win.move(
-        (screen.width() - size.width()) // 2, (screen.height() - size.height()) // 2
-    )
+    # 窗口最大化
+    win.showMaximized()
 
     win.show()
     win.raise_()

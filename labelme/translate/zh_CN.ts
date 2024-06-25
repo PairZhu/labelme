@@ -181,16 +181,6 @@
         <translation>选择多边形填充颜色</translation>
     </message>
     <message>
-        <location filename="../app.py" line="247"/>
-        <source>Keep Previous Annotation</source>
-        <translation>保留最后的标注</translation>
-    </message>
-    <message>
-        <location filename="../app.py" line="247"/>
-        <source>Toggle &quot;keep pevious annotation&quot; mode</source>
-        <translation>开关“保留最后的标注”模式</translation>
-    </message>
-    <message>
         <location filename="../app.py" line="255"/>
         <source>Create Polygons</source>
         <translation>创建多边形</translation>
@@ -412,6 +402,11 @@ Polygons</source>
         <location filename="../app.py" line="364"/>
         <source>Zoom follows window width</source>
         <translation>跟随窗口宽度缩放</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="365"/>
+        <source>&amp;Color Convert</source>
+        <translation>色彩映射(&amp;C)</translation>
     </message>
     <message>
         <location filename="../app.py" line="380"/>

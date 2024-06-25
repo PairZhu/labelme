@@ -30,6 +30,7 @@ class Canvas(QtWidgets.QWidget):
     shapeMoved = QtCore.Signal()
     drawingPolygon = QtCore.Signal(bool)
     vertexSelected = QtCore.Signal(bool)
+    mouseMoved = QtCore.Signal(QtCore.QPointF)
 
     CREATE, EDIT = 0, 1
 
@@ -237,6 +238,7 @@ class Canvas(QtWidgets.QWidget):
         except AttributeError:
             return
 
+        self.mouseMoved.emit(pos)
         self.prevMovePoint = pos
         self.restoreCursor()
 
@@ -795,7 +797,6 @@ class Canvas(QtWidgets.QWidget):
 
     def transformPos(self, point):
         """Convert from widget-logical coordinates to painter-logical ones."""
-        # return point / self.scale - self.offsetToCenter()
         return (
             QtCore.QPointF(point.x() / self.scale[0], point.y() / self.scale[1])
             - self.offsetToCenter()

@@ -1,4 +1,3 @@
-import base64
 import contextlib
 import io
 import json
@@ -8,7 +7,6 @@ import numpy as np
 import PIL.Image
 
 from labelme import PY2
-from labelme import QT4
 from labelme import __version__
 from labelme import utils
 from labelme.logger import logger
@@ -39,6 +37,8 @@ class LabelFile(object):
         self.shapes = []
         self.imagePath = None
         self.imageData = None
+        self.beginTime = None
+        self.endTime = None
         if filename is not None:
             self.load(filename)
         self.filename = filename
@@ -47,14 +47,16 @@ class LabelFile(object):
     def load_image_file(filename):
         try:
             img_data = np.fromfile(filename, dtype="<i2")
-            filename = osp.splitext(filename)[0]
-            point_len = int(filename.split("_")[-1])
+            file_name_without_ext = osp.splitext(osp.basename(filename))[0]
+            begin_time = int(file_name_without_ext.split("_")[0])
+            end_time = int(file_name_without_ext.split("_")[1])
+            point_len = int(file_name_without_ext.split("_")[2])
             img_data = img_data.reshape(-1, point_len).T
         except IOError:
             logger.error("Failed opening data file: {}".format(filename))
             return
 
-        return img_data
+        return img_data, begin_time, end_time
 
     def load(self, filename):
         keys = [
@@ -81,7 +83,7 @@ class LabelFile(object):
 
             # relative path from label file to relative path from cwd
             imagePath = osp.join(osp.dirname(filename), data["imagePath"])
-            imageData = self.load_image_file(imagePath)
+            imageData, beginTime, endTime = self.load_image_file(imagePath)
             flags = data.get("flags") or {}
             imagePath = data["imagePath"]
             self._check_image_height_and_width(
@@ -115,6 +117,8 @@ class LabelFile(object):
         self.shapes = shapes
         self.imagePath = imagePath
         self.imageData = imageData
+        self.beginTime = beginTime
+        self.endTime = endTime
         self.filename = filename
         self.otherData = otherData
 
