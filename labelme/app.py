@@ -302,14 +302,6 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         saveAuto.setChecked(self._config["auto_save"])
 
-        saveWithImageData = action(
-            text="Save With Image Data",
-            slot=self.enableSaveImageWithData,
-            tip="Save image data in label file",
-            checkable=True,
-            checked=self._config["store_data"],
-        )
-
         close = action(
             "&Close",
             self.closeFile,
@@ -646,7 +638,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # Store actions for further handling.
         self.actions = utils.struct(
             saveAuto=saveAuto,
-            saveWithImageData=saveWithImageData,
             changeOutputDir=changeOutputDir,
             save=save,
             saveAs=saveAs,
@@ -756,7 +747,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 saveAs,
                 saveAuto,
                 changeOutputDir,
-                saveWithImageData,
                 close,
                 deleteFile,
                 None,
@@ -991,10 +981,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.actions.undo.setEnabled(self.canvas.isShapeRestorable)
 
         if self._config["auto_save"] or self.actions.saveAuto.isChecked():
-            label_file = osp.splitext(self.imagePath)[0] + ".json"
+            label_file = osp.join(
+                osp.dirname(self.imagePath), LabelFile.basename + LabelFile.suffix
+            )
             if self.output_dir:
-                label_file_without_path = osp.basename(label_file)
-                label_file = osp.join(self.output_dir, label_file_without_path)
+                label_file = osp.join(
+                    self.output_dir, LabelFile.basename + LabelFile.suffix
+                )
             self.saveLabels(label_file)
             return
         self.dirty = True
@@ -1045,6 +1038,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.imageData = None
         self.labelFile = None
         self.otherData = None
+        self.invisible_shapes = []
         self.canvas.resetState()
 
     def currentItem(self):
@@ -1290,11 +1284,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def loadShapes(self, shapes, replace=True):
         self._noSelectionSlot = True
+        visible_shapes = []
         for shape in shapes:
-            self.addLabel(shape)
+            if self.shapeVisible(shape):
+                self.addLabel(shape)
+                visible_shapes.append(shape)
+            else:
+                self.invisible_shapes.append(shape)
         self.labelList.clearSelection()
         self._noSelectionSlot = False
-        self.canvas.loadShapes(shapes, replace=replace)
+        self.canvas.loadShapes(visible_shapes, replace=replace)
 
     def loadLabels(self, shapes):
         s = []
@@ -1318,7 +1317,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 description=description,
                 mask=shape["mask"],
             )
-            for x, y in points:
+            for t, y in points:
+                x = self.tTox(t)
                 shape.addPoint(QtCore.QPointF(x, y))
             shape.close()
 
@@ -1351,7 +1351,7 @@ class MainWindow(QtWidgets.QMainWindow):
             data.update(
                 dict(
                     label=s.label.encode("utf-8") if PY2 else s.label,
-                    points=[(p.x(), p.y()) for p in s.points],
+                    points=[(self.xTot(p.x()), p.y()) for p in s.points],
                     group_id=s.group_id,
                     description=s.description,
                     shape_type=s.shape_type,
@@ -1362,6 +1362,8 @@ class MainWindow(QtWidgets.QMainWindow):
             return data
 
         shapes = [format_shape(item.shape()) for item in self.labelList]
+        # 增加不可见的shape
+        shapes += [format_shape(s) for s in self.invisible_shapes]
         flags = {}
         for i in range(self.flag_widget.count()):
             item = self.flag_widget.item(i)
@@ -1370,14 +1372,12 @@ class MainWindow(QtWidgets.QMainWindow):
             flags[key] = flag
         try:
             imagePath = osp.relpath(self.imagePath, osp.dirname(filename))
-            imageData = self.imageData if self._config["store_data"] else None
             if osp.dirname(filename) and not osp.exists(osp.dirname(filename)):
                 os.makedirs(osp.dirname(filename))
             lf.save(
                 filename=filename,
                 shapes=shapes,
                 imagePath=imagePath,
-                imageData=imageData,
                 imageHeight=self.image.height(),
                 imageWidth=self.image.width(),
                 otherData=self.otherData,
@@ -1405,7 +1405,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setDirty()
 
     def pasteSelectedShape(self):
-        self.loadShapes(self._copied_shapes, replace=False)
+        copied_shapes = []
+        for shape in self._copied_shapes:
+            shape.begin_time = self.timeLine.begin_time
+            shape.end_time = self.timeLine.end_time
+            shape.map_width = self.canvas.pixmap.width()
+            copied_shapes.append(shape)
+        self.loadShapes(copied_shapes, replace=False)
         self.setDirty()
 
     def copySelectedShape(self):
@@ -1431,6 +1437,26 @@ class MainWindow(QtWidgets.QMainWindow):
     def labelOrderChanged(self):
         self.setDirty()
         self.canvas.loadShapes([item.shape() for item in self.labelList])
+
+    def xTot(self, x):
+        time_per_pixel = (
+            self.timeLine.end_time - self.timeLine.begin_time
+        ) / self.canvas.pixmap.width()
+        t = self.timeLine.begin_time + x * time_per_pixel
+        return t
+
+    def tTox(self, t):
+        pixel_per_time = self.canvas.pixmap.width() / (
+            self.timeLine.end_time - self.timeLine.begin_time
+        )
+        x = (t - self.timeLine.begin_time) * pixel_per_time
+        return x
+
+    def shapeVisible(self, shape):
+        for p in shape.points:
+            if p.x() < 0 or p.x() > self.canvas.pixmap.width():
+                return False
+        return True
 
     # Callback functions:
 
@@ -1615,13 +1641,17 @@ class MainWindow(QtWidgets.QMainWindow):
             return False
         # assumes same name, but json extension
         self.status(str(self.tr("Loading %s...")) % osp.basename(str(filename)))
-        label_file = osp.splitext(filename)[0] + ".json"
+        label_file = osp.join(
+            osp.dirname(filename), LabelFile.basename + LabelFile.suffix
+        )
         if self.output_dir:
-            label_file_without_path = osp.basename(label_file)
-            label_file = osp.join(self.output_dir, label_file_without_path)
-        if QtCore.QFile.exists(label_file) and LabelFile.is_label_file(label_file):
+            label_file = osp.join(
+                self.output_dir, LabelFile.basename + LabelFile.suffix
+            )
+        if QtCore.QFile.exists(label_file):
             try:
                 self.labelFile = LabelFile(label_file)
+                self.labelFile.load(label_file, filename)
             except LabelFileError as e:
                 self.errorMessage(
                     self.tr("Error opening file"),
@@ -1636,10 +1666,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.imageData = self.labelFile.imageData
             beginTime = self.labelFile.beginTime
             endTime = self.labelFile.endTime
-            self.imagePath = osp.join(
-                osp.dirname(label_file),
-                self.labelFile.imagePath,
-            )
+            self.imagePath = filename
             self.otherData = self.labelFile.otherData
         else:
             self.imageData, beginTime, endTime = LabelFile.load_image_file(filename)
@@ -1759,10 +1786,6 @@ class MainWindow(QtWidgets.QMainWindow):
         w2 = self.canvas.pixmap.width()
         h = self.scrollArea.width()
         return (w1 / w2, 1)
-
-    def enableSaveImageWithData(self, enabled):
-        self._config["store_data"] = enabled
-        self.actions.saveWithImageData.setChecked(enabled)
 
     def closeEvent(self, event):
         if not self.mayContinue():
@@ -1918,14 +1941,13 @@ class MainWindow(QtWidgets.QMainWindow):
         dlg.setAcceptMode(QtWidgets.QFileDialog.AcceptSave)
         dlg.setOption(QtWidgets.QFileDialog.DontConfirmOverwrite, False)
         dlg.setOption(QtWidgets.QFileDialog.DontUseNativeDialog, False)
-        basename = osp.basename(osp.splitext(self.filename)[0])
         if self.output_dir:
             default_labelfile_name = osp.join(
-                self.output_dir, basename + LabelFile.suffix
+                self.output_dir, LabelFile.basename + LabelFile.suffix
             )
         else:
             default_labelfile_name = osp.join(
-                self.currentPath(), basename + LabelFile.suffix
+                self.currentPath(), LabelFile.basename + LabelFile.suffix
             )
         filename = dlg.getSaveFileName(
             self,

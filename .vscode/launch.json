@@ -10,6 +10,7 @@
             "request": "launch",
             "module": "labelme",
             "justMyCode": false,
+            "args": ["C:\\Users\\11153\\Desktop\\das"]
         }
     ]
 }

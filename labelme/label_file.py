@@ -31,6 +31,7 @@ class LabelFileError(Exception):
 
 
 class LabelFile(object):
+    basename = "labels"
     suffix = ".json"
 
     def __init__(self, filename=None):
@@ -39,8 +40,6 @@ class LabelFile(object):
         self.imageData = None
         self.beginTime = None
         self.endTime = None
-        if filename is not None:
-            self.load(filename)
         self.filename = filename
 
     @staticmethod
@@ -58,11 +57,10 @@ class LabelFile(object):
 
         return img_data, begin_time, end_time
 
-    def load(self, filename):
+    def load(self, filename, imagePath):
         keys = [
             "version",
-            "imageData",
-            "imagePath",
+            "imageDir",
             "shapes",  # polygonal annotations
             "flags",  # image level flags
             "imageHeight",
@@ -82,10 +80,8 @@ class LabelFile(object):
                 data = json.load(f)
 
             # relative path from label file to relative path from cwd
-            imagePath = osp.join(osp.dirname(filename), data["imagePath"])
             imageData, beginTime, endTime = self.load_image_file(imagePath)
             flags = data.get("flags") or {}
-            imagePath = data["imagePath"]
             self._check_image_height_and_width(
                 imageData,
                 data.get("imageHeight"),
@@ -115,7 +111,6 @@ class LabelFile(object):
         # Only replace data after everything is loaded.
         self.flags = flags
         self.shapes = shapes
-        self.imagePath = imagePath
         self.imageData = imageData
         self.beginTime = beginTime
         self.endTime = endTime
@@ -145,7 +140,6 @@ class LabelFile(object):
         imagePath,
         imageHeight,
         imageWidth,
-        imageData=None,
         otherData=None,
         flags=None,
     ):
@@ -153,12 +147,12 @@ class LabelFile(object):
             otherData = {}
         if flags is None:
             flags = {}
+        imageDir = osp.dirname(imagePath)
         data = dict(
             version=__version__,
             flags=flags,
             shapes=shapes,
-            imagePath=imagePath,
-            imageData=None,
+            imageDir=imageDir,
             imageHeight=imageHeight,
             imageWidth=imageWidth,
         )
