@@ -45,11 +45,16 @@ class LabelFile(object):
     @staticmethod
     def load_image_file(filename):
         try:
-            img_data = np.fromfile(filename, dtype="<i2")
             file_name_without_ext = osp.splitext(osp.basename(filename))[0]
-            begin_time = int(file_name_without_ext.split("_")[0])
-            end_time = int(file_name_without_ext.split("_")[1])
-            point_len = int(file_name_without_ext.split("_")[2])
+            file_params = file_name_without_ext.split("_")
+            assert len(file_params) >= 3, "Invalid file name format."
+            begin_time = int(file_params[0])
+            end_time = int(file_params[1])
+            point_len = int(file_params[2])
+            dtype_str = "<i2"
+            if len(file_params) > 3:
+                dtype_str = file_params[3]
+            img_data = np.fromfile(filename, dtype=dtype_str)
             img_data = img_data.reshape(-1, point_len).T
         except IOError:
             logger.error("Failed opening data file: {}".format(filename))
