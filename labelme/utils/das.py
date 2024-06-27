@@ -3,25 +3,40 @@ import numpy as np
 
 def color_convert(
     data: np.ndarray,
+    abs: bool = True,
     log10: bool = True,
     heatmap: bool = True,
-    min_value: float = 0,
+    min_value: float = -1,
     max_value: float = 1,
 ) -> np.ndarray:
     dtype = data.dtype
-    # 防止abs时上溢
-    data = np.abs(data.astype(np.float32))
+    # 防止上溢
+    data = data.astype(np.float32)
     # 获取类型的最大值
-    type_max = max(np.iinfo(dtype).max, -np.iinfo(dtype).min)
+    if np.issubdtype(dtype, np.integer):
+        type_max = max(np.iinfo(dtype).max, -np.iinfo(dtype).min)
+    else:
+        type_max = 1
     max_value = max_value * type_max
-    min_value = min_value * type_max
+    # 如果类型为无符号整数，最小值为0
+    if np.issubdtype(dtype, np.unsignedinteger):
+        min_value = 0
+    else:
+        min_value = min_value * type_max
     # 截断
     data = np.clip(data, min_value, max_value)
-    # 获取
+    # 取绝对值
+    if abs:
+        data = np.abs(data)
+        min_value = 0
+    # 取对数
+    MIN_LOG = 1
     if log10:
-        data = np.log10(data + 1e-5)
-        max_value = np.log10(max_value + 1e-5)
-        min_value = np.log10(min_value + 1e-5)
+        data[data >= 0] = np.log10(data[data >= 0] + MIN_LOG)
+        data[data < 0] = -np.log10(-data[data < 0] + MIN_LOG)
+        max_value = np.log10(max_value + MIN_LOG)
+        min_value = -np.log10(-min_value + MIN_LOG)
+
     # 归一化到0~1
     data = (data - min_value) / (max_value - min_value)
     if heatmap:

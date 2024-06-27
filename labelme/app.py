@@ -583,7 +583,7 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         colorConvert = action(
             self.tr("&Color Convert"),
-            self.colorConvert,
+            self.colorConvertDialog,
             None,
             "color",
             "Adjust the rule of color convert",
@@ -862,7 +862,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.zoom_level = 100
         self.fit_window = False
         self.zoom_value = None  # (zoom_mode, zoom_value)
-        self.colorConvert_value = (None, None, None, None)
+        self.colorConvertForm = None
         self.scroll_values = {
             Qt.Horizontal: {},
             Qt.Vertical: {},
@@ -1581,35 +1581,17 @@ class MainWindow(QtWidgets.QMainWindow):
     def onNewColorConvert(self, qimage):
         self.canvas.loadPixmap(QtGui.QPixmap.fromImage(qimage), clear_shapes=False)
 
-    def colorConvert(self, value):
+    def colorConvertDialog(self, _):
         dialog = ColorConvertDialog(
             self.imageData,
             self.onNewColorConvert,
             parent=self,
         )
 
-        log10, heatmap, min_value, max_value = self.colorConvert_value
-        if log10 is not None:
-            dialog.log10_checkbox.setChecked(log10)
-        if heatmap is not None:
-            dialog.heatmap_checkbox.setChecked(heatmap)
-        if min_value is not None:
-            dialog.slider_min.setValue(min_value)
-        if max_value is not None:
-            dialog.slider_max.setValue(max_value)
-
+        if self.colorConvertForm:
+            dialog.setFormValue(self.colorConvertForm)
         dialog.exec_()
-
-        log10 = dialog.log10_checkbox.isChecked()
-        heatmap = dialog.heatmap_checkbox.isChecked()
-        min_value = dialog.slider_min.value()
-        max_value = dialog.slider_max.value()
-        self.colorConvert_value = (
-            log10,
-            heatmap,
-            min_value,
-            max_value,
-        )
+        self.colorConvertForm = dialog.getFormValue()
 
     def togglePolygons(self, value):
         flag = value
@@ -1716,24 +1698,10 @@ class MainWindow(QtWidgets.QMainWindow):
             self.onNewColorConvert,
             parent=self,
         )
-        log10, heatmap, min_value, max_value = self.colorConvert_value
-        if log10 is not None:
-            dialog.log10_checkbox.setChecked(log10)
-        if heatmap is not None:
-            dialog.heatmap_checkbox.setChecked(heatmap)
-        if min_value is not None:
-            dialog.slider_min.setValue(min_value)
-        if max_value is not None:
-            dialog.slider_max.setValue(max_value)
+        if self.colorConvertForm:
+            dialog.setFormValue(self.colorConvertForm)
 
-        self.colorConvert_value = (
-            log10,
-            heatmap,
-            min_value,
-            max_value,
-        )
-        if any([v is not None for v in (log10, heatmap, min_value, max_value)]):
-            dialog.onNewValue(None)
+        self.colorConvertForm = dialog.getFormValue()
 
         self.paintCanvas()
         self.updateTimeLine(None)
