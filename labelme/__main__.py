@@ -174,7 +174,6 @@ def main():
     # 窗口最大化
     win.showMaximized()
 
-    win.show()
     win.raise_()
     sys.exit(app.exec_())
 
