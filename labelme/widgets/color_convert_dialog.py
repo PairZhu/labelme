@@ -24,7 +24,7 @@ class ColorConvertDialog(QtWidgets.QDialog):
         check_heatmap.setChecked(True)
 
         slider_max, widget_max = self._create_slider(
-            (0, self.MAX_VALUE), self.MAX_VALUE
+            (1, self.MAX_VALUE), self.MAX_VALUE
         )
         slider_min, widget_min = self._create_slider(
             (-self.MAX_VALUE, 0), -self.MAX_VALUE
