@@ -94,13 +94,13 @@ class ColorConvertDialog(QtWidgets.QDialog):
             "abs": self.log10_checkbox.isChecked(),
             "log10": self.log10_checkbox.isChecked(),
             "heatmap": self.heatmap_checkbox.isChecked(),
-            "min_value": self.slider_min.value(),
-            "max_value": self.slider_max.value(),
+            "min_value": self.slider_min.value() / self.MAX_VALUE,
+            "max_value": self.slider_max.value() / self.MAX_VALUE,
         }
 
     def setFormValue(self, value):
         self.log10_checkbox.setChecked(value["log10"])
         self.heatmap_checkbox.setChecked(value["heatmap"])
-        self.slider_min.setValue(value["min_value"])
-        self.slider_max.setValue(value["max_value"])
+        self.slider_min.setValue(int(value["min_value"] * self.MAX_VALUE))
+        self.slider_max.setValue(int(value["max_value"] * self.MAX_VALUE))
         self.onNewValue(None)

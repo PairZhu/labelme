@@ -15,6 +15,13 @@ shape_color: auto  # null, 'auto', 'manual'
 shift_auto_shape_color: 0
 label_colors: null
 
+color_convert:
+  abs: true
+  log10: true
+  heatmap: true
+  max_value: 1
+  min_value: -1
+
 shape:
   # drawing
   line_color: [0, 255, 0, 128]

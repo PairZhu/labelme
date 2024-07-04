@@ -862,7 +862,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.zoom_level = 100
         self.fit_window = False
         self.zoom_value = None  # (zoom_mode, zoom_value)
-        self.colorConvertForm = None
+        self.colorConvertForm = self._config["color_convert"]
         self.scroll_values = {
             Qt.Horizontal: {},
             Qt.Vertical: {},
