@@ -53,7 +53,7 @@ class LabelFile(object):
             point_len = int(file_params[2])
             dtype_str = "<i2"
             if len(file_params) > 3:
-                dtype_str = file_params[3]
+                dtype_str = file_params[3].replace("l-", "<").replace("b-", ">")
             img_data = np.fromfile(filename, dtype=dtype_str)
             img_data = img_data.reshape(-1, point_len).T
         except IOError:
