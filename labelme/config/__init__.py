@@ -73,3 +73,10 @@ def get_config(config_file_or_yaml=None, config_from_args=None):
         update_dict(config, config_from_args, validate_item=validate_config_item)
 
     return config
+
+
+def save_config(config):
+    user_config_file = osp.join(osp.expanduser("~"), ".labelmerc")
+    with open(user_config_file, "w") as f:
+        yaml.safe_dump(config, f, default_flow_style=False)
+        logger.info("Saved config to: {}".format(user_config_file))

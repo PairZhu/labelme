@@ -19,7 +19,7 @@ from qtpy.QtCore import Qt
 from labelme import PY2
 from labelme import __appname__
 from labelme.ai import MODELS
-from labelme.config import get_config
+from labelme.config import get_config, save_config
 from labelme.label_file import LabelFile
 from labelme.label_file import LabelFileError
 from labelme.logger import logger
@@ -862,7 +862,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.zoom_level = 100
         self.fit_window = False
         self.zoom_value = None  # (zoom_mode, zoom_value)
-        self.colorConvertForm = self._config["color_convert"]
         self.scroll_values = {
             Qt.Horizontal: {},
             Qt.Vertical: {},
@@ -1588,10 +1587,10 @@ class MainWindow(QtWidgets.QMainWindow):
             parent=self,
         )
 
-        if self.colorConvertForm:
-            dialog.setFormValue(self.colorConvertForm)
+        if self._config["color_convert"]:
+            dialog.setFormValue(self._config["color_convert"])
         dialog.exec_()
-        self.colorConvertForm = dialog.getFormValue()
+        self._config["color_convert"] = dialog.getFormValue()
 
     def togglePolygons(self, value):
         flag = value
@@ -1698,10 +1697,10 @@ class MainWindow(QtWidgets.QMainWindow):
             self.onNewColorConvert,
             parent=self,
         )
-        if self.colorConvertForm:
-            dialog.setFormValue(self.colorConvertForm)
+        if self._config["color_convert"]:
+            dialog.setFormValue(self._config["color_convert"])
 
-        self.colorConvertForm = dialog.getFormValue()
+        self._config["color_convert"] = dialog.getFormValue()
 
         self.paintCanvas()
         self.updateTimeLine(None)
@@ -1763,8 +1762,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings.setValue("window/position", self.pos())
         self.settings.setValue("window/state", self.saveState())
         self.settings.setValue("recentFiles", self.recentFiles)
-        # ask the use for where to save the labels
-        # self.settings.setValue('window/geometry', self.saveGeometry())
+        save_config(self._config)
 
     def dragEnterEvent(self, event):
         extensions = [
