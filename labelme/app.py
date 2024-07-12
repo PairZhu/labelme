@@ -295,7 +295,7 @@ class MainWindow(QtWidgets.QMainWindow):
         saveAuto = action(
             text=self.tr("Save &Automatically"),
             slot=lambda x: self.actions.saveAuto.setChecked(x),
-            icon="save",
+            icon=None,
             tip=self.tr("Save automatically"),
             checkable=True,
             enabled=True,
@@ -1453,9 +1453,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def shapeVisible(self, shape):
         for p in shape.points:
-            if p.x() < 0 or p.x() > self.canvas.pixmap.width():
-                return False
-        return True
+            if p.x() > 0 and p.x() < self.canvas.pixmap.width():
+                return True
+        return False
 
     # Callback functions:
 
