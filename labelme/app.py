@@ -294,13 +294,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
         saveAuto = action(
             text=self.tr("Save &Automatically"),
-            slot=lambda x: self.actions.saveAuto.setChecked(x),
+            slot=lambda x: self._config.update({"auto_save": x}),
             icon=None,
             tip=self.tr("Save automatically"),
             checkable=True,
             enabled=True,
+            checked=self._config["auto_save"],
         )
-        saveAuto.setChecked(self._config["auto_save"])
 
         close = action(
             "&Close",
