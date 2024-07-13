@@ -17,7 +17,7 @@ label_colors: null
 
 color_convert:
   abs: true
-  log10: true
+  log: true
   heatmap: true
   max_value: 1
   min_value: -1

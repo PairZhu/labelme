@@ -1,10 +1,11 @@
 import numpy as np
+from matplotlib import cm
 
 
 def color_convert(
     data: np.ndarray,
     abs: bool = True,
-    log10: bool = True,
+    log: bool = True,
     heatmap: bool = True,
     min_value: float = -1,
     max_value: float = 1,
@@ -24,62 +25,31 @@ def color_convert(
     else:
         min_value = min_value * type_max
     # 截断
-    data = np.clip(data, min_value, max_value)
+    np.clip(data, min_value, max_value, out=data)
     # 取绝对值
     if abs:
-        data = np.abs(data)
+        np.abs(data, out=data)
         min_value = 0
     # 取对数
-    MIN_LOG = 1
-    if log10:
-        data[data >= 0] = np.log10(data[data >= 0] + MIN_LOG)
-        data[data < 0] = -np.log10(-data[data < 0] + MIN_LOG)
-        max_value = np.log10(max_value + MIN_LOG)
-        min_value = -np.log10(-min_value + MIN_LOG)
+    if log:
+        sign = np.sign(data)
+        np.log1p(np.abs(data, out=data), out=data)
+        data *= sign
+        max_value = np.log1p(max_value)
+        min_value = -np.log1p(-min_value)
 
     # 归一化到0~1
-    data = (data - min_value) / (max_value - min_value)
+    scale = 1 / (max_value - min_value)
+    data -= min_value
+    data *= scale
+
+    # 使用matplotlib的colormap
     if heatmap:
-        cdict = {
-            "red": (
-                (0.00, 0, 0),
-                (0.35, 0, 0),
-                (0.66, 1, 1),
-                (0.89, 1, 1),
-                (1.00, 0.5, 0.5),
-            ),
-            "green": (
-                (0.000, 0, 0),
-                (0.125, 0, 0),
-                (0.375, 1, 1),
-                (0.640, 1, 1),
-                (0.910, 0, 0),
-                (1.000, 0, 0),
-            ),
-            "blue": (
-                (0.00, 0.5, 0.5),
-                (0.11, 1, 1),
-                (0.34, 1, 1),
-                (0.65, 0, 0),
-                (1.00, 0, 0),
-            ),
-        }
+        cmap = cm.get_cmap("jet")
     else:
-        cdict = {
-            "red": [(0.0, 1.0, 1.0), (1.0, 0.0, 0.0)],
-            "green": [(0.0, 1.0, 1.0), (1.0, 0.0, 0.0)],
-            "blue": [(0.0, 1.0, 1.0), (1.0, 0.0, 0.0)],
-        }
-    r = (
-        np.interp(data, [x[0] for x in cdict["red"]], [x[1] for x in cdict["red"]])
-        * 255
-    )
-    g = (
-        np.interp(data, [x[0] for x in cdict["green"]], [x[1] for x in cdict["green"]])
-        * 255
-    )
-    b = (
-        np.interp(data, [x[0] for x in cdict["blue"]], [x[1] for x in cdict["blue"]])
-        * 255
-    )
-    return np.stack([r, g, b], axis=-1).astype(np.uint8)
+        cmap = cm.get_cmap("gray")
+    data = cmap(data)[..., :3]
+    data *= 255
+    data = data.astype(np.uint8)
+
+    return data

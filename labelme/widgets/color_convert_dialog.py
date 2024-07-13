@@ -17,8 +17,8 @@ class ColorConvertDialog(QtWidgets.QDialog):
         check_abs = QtWidgets.QCheckBox()
         check_abs.setChecked(True)
 
-        check_log10 = QtWidgets.QCheckBox()
-        check_log10.setChecked(True)
+        check_log = QtWidgets.QCheckBox()
+        check_log.setChecked(True)
 
         check_heatmap = QtWidgets.QCheckBox()
         check_heatmap.setChecked(True)
@@ -32,14 +32,14 @@ class ColorConvertDialog(QtWidgets.QDialog):
 
         form_layout = QtWidgets.QFormLayout()
         form_layout.addRow("绝对值", check_abs)
-        form_layout.addRow("对数变换", check_log10)
+        form_layout.addRow("对数变换", check_log)
         form_layout.addRow("热力图", check_heatmap)
         form_layout.addRow("最大值", widget_max)
         form_layout.addRow("最小值", widget_min)
         self.setLayout(form_layout)
 
         check_abs.stateChanged.connect(self.onNewValue)
-        check_log10.stateChanged.connect(self.onNewValue)
+        check_log.stateChanged.connect(self.onNewValue)
         check_heatmap.stateChanged.connect(self.onNewValue)
         slider_max.valueChanged.connect(self.onNewValue)
         slider_min.valueChanged.connect(self.onNewValue)
@@ -47,7 +47,7 @@ class ColorConvertDialog(QtWidgets.QDialog):
         self.img = img
         self.callback = callback
         self.abs_checkbox = check_abs
-        self.log10_checkbox = check_log10
+        self.log_checkbox = check_log
         self.heatmap_checkbox = check_heatmap
         self.slider_max = slider_max
         self.slider_min = slider_min
@@ -57,7 +57,7 @@ class ColorConvertDialog(QtWidgets.QDialog):
         image = utils.color_convert(
             self.img,
             abs=self.abs_checkbox.isChecked(),
-            log10=self.log10_checkbox.isChecked(),
+            log=self.log_checkbox.isChecked(),
             heatmap=self.heatmap_checkbox.isChecked(),
             min_value=self.slider_min.value() / self.MAX_VALUE,
             max_value=self.slider_max.value() / self.MAX_VALUE,
@@ -66,7 +66,7 @@ class ColorConvertDialog(QtWidgets.QDialog):
             image.tobytes(),
             image.shape[1],
             image.shape[0],
-            image.shape[1] * 3,
+            image.shape[1] * (image.shape[2]),
             QImage.Format_RGB888,
         )
         self.callback(image)
@@ -91,15 +91,15 @@ class ColorConvertDialog(QtWidgets.QDialog):
 
     def getFormValue(self):
         return {
-            "abs": self.log10_checkbox.isChecked(),
-            "log10": self.log10_checkbox.isChecked(),
+            "abs": self.log_checkbox.isChecked(),
+            "log": self.log_checkbox.isChecked(),
             "heatmap": self.heatmap_checkbox.isChecked(),
             "min_value": self.slider_min.value() / self.MAX_VALUE,
             "max_value": self.slider_max.value() / self.MAX_VALUE,
         }
 
     def setFormValue(self, value):
-        self.log10_checkbox.setChecked(value["log10"])
+        self.log_checkbox.setChecked(value["log"])
         self.heatmap_checkbox.setChecked(value["heatmap"])
         self.slider_min.setValue(int(value["min_value"] * self.MAX_VALUE))
         self.slider_max.setValue(int(value["max_value"] * self.MAX_VALUE))
