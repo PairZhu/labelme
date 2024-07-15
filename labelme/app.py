@@ -1453,10 +1453,14 @@ class MainWindow(QtWidgets.QMainWindow):
         return x
 
     def shapeVisible(self, shape):
+        max_x, min_x = float("-inf"), float("inf")
         for p in shape.points:
-            if p.x() > 0 and p.x() < self.canvas.pixmap.width():
+            x = p.x()
+            max_x = max(max_x, x)
+            min_x = min(min_x, x)
+            if x >= 0 and x <= self.canvas.pixmap.width():
                 return True
-        return False
+        return min_x < 0 and max_x > self.canvas.pixmap.width()
 
     # Callback functions:
 
