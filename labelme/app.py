@@ -1245,6 +1245,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 html.escape(text), *shape.fill_color.getRgb()[:3]
             )
         )
+        self.setEditMode()
 
     def _update_shape_color(self, shape):
         r, g, b = self._get_rgb_by_label(shape.label)
