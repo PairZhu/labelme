@@ -275,15 +275,6 @@ class MainWindow(QtWidgets.QMainWindow):
             enabled=False,
         )
 
-        deleteFile = action(
-            self.tr("&Delete File"),
-            self.deleteFile,
-            shortcuts["delete_file"],
-            "delete",
-            self.tr("Delete current label file"),
-            enabled=False,
-        )
-
         changeOutputDir = action(
             self.tr("&Change Output Dir"),
             slot=self.changeOutputDirDialog,
@@ -643,7 +634,6 @@ class MainWindow(QtWidgets.QMainWindow):
             saveAs=saveAs,
             open=open_,
             close=close,
-            deleteFile=deleteFile,
             delete=delete,
             edit=edit,
             duplicate=duplicate,
@@ -748,7 +738,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 saveAuto,
                 changeOutputDir,
                 close,
-                deleteFile,
                 None,
                 quit,
             ),
@@ -826,7 +815,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.actions.tool = (
             open_,
             opendir,
-            deleteFile,
             None,
             createRectangleMode,
             editMode,
@@ -1011,11 +999,6 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.filename is not None:
             title = "{} - {}".format(title, self.filename)
         self.setWindowTitle(title)
-
-        if self.hasLabelFile():
-            self.actions.deleteFile.setEnabled(True)
-        else:
-            self.actions.deleteFile.setEnabled(False)
 
     def toggleActions(self, value=True):
         """Enable/Disable widgets which depend on an opened image."""
@@ -1780,13 +1763,6 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             event.ignore()
 
-    def dropEvent(self, event):
-        if not self.mayContinue():
-            event.ignore()
-            return
-        items = [i.toLocalFile() for i in event.mimeData().urls()]
-        self.importDroppedImageFiles(items)
-
     # User Dialogs #
 
     def loadRecent(self, filename):
@@ -1944,33 +1920,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas.setEnabled(False)
         self.actions.saveAs.setEnabled(False)
 
-    def getLabelFile(self):
-        if self.filename.lower().endswith(".json"):
-            label_file = self.filename
-        else:
-            label_file = osp.splitext(self.filename)[0] + ".json"
-
-        return label_file
-
-    def deleteFile(self):
-        mb = QtWidgets.QMessageBox
-        msg = self.tr(
-            "You are about to permanently delete this label file, " "proceed anyway?"
-        )
-        answer = mb.warning(self, self.tr("Attention"), msg, mb.Yes | mb.No)
-        if answer != mb.Yes:
-            return
-
-        label_file = self.getLabelFile()
-        if osp.exists(label_file):
-            os.remove(label_file)
-            logger.info("Label file is removed: {}".format(label_file))
-
-            item = self.fileListWidget.currentItem()
-            item.setCheckState(Qt.Unchecked)
-
-            self.resetState()
-
     # Message Dialogs. #
     def hasLabels(self):
         if self.noShapes():
@@ -1980,13 +1929,6 @@ class MainWindow(QtWidgets.QMainWindow):
             )
             return False
         return True
-
-    def hasLabelFile(self):
-        if self.filename is None:
-            return False
-
-        label_file = self.getLabelFile()
-        return osp.exists(label_file)
 
     def mayContinue(self):
         if not self.dirty:
@@ -2074,31 +2016,6 @@ class MainWindow(QtWidgets.QMainWindow):
             lst.append(item.text())
         return lst
 
-    def importDroppedImageFiles(self, imageFiles):
-        extensions = [".dat"]
-
-        self.filename = None
-        for file in imageFiles:
-            if file in self.imageList or not file.lower().endswith(tuple(extensions)):
-                continue
-            label_file = osp.splitext(file)[0] + ".json"
-            if self.output_dir:
-                label_file_without_path = osp.basename(label_file)
-                label_file = osp.join(self.output_dir, label_file_without_path)
-            item = QtWidgets.QListWidgetItem(file)
-            item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-            if QtCore.QFile.exists(label_file) and LabelFile.is_label_file(label_file):
-                item.setCheckState(Qt.Checked)
-            else:
-                item.setCheckState(Qt.Unchecked)
-            self.fileListWidget.addItem(item)
-
-        if len(self.imageList) > 1:
-            self.actions.openNextImg.setEnabled(True)
-            self.actions.openPrevImg.setEnabled(True)
-
-        self.openNextImg()
-
     def importDirImages(self, dirpath, pattern=None, load=True):
         self.actions.openNextImg.setEnabled(True)
         self.actions.openPrevImg.setEnabled(True)
@@ -2117,16 +2034,9 @@ class MainWindow(QtWidgets.QMainWindow):
             except re.error:
                 pass
         for filename in filenames:
-            label_file = osp.splitext(filename)[0] + ".json"
-            if self.output_dir:
-                label_file_without_path = osp.basename(label_file)
-                label_file = osp.join(self.output_dir, label_file_without_path)
             item = QtWidgets.QListWidgetItem(filename)
             item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-            if QtCore.QFile.exists(label_file) and LabelFile.is_label_file(label_file):
-                item.setCheckState(Qt.Checked)
-            else:
-                item.setCheckState(Qt.Unchecked)
+            item.setCheckState(Qt.Unchecked)
             self.fileListWidget.addItem(item)
         self.openNextImg(load=load)
 

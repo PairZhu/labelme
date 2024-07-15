@@ -93,7 +93,6 @@ shortcuts:
   save: Ctrl+S
   save_as: Ctrl+Shift+S
   save_to: null
-  delete_file: Ctrl+Delete
 
   open_next: [D, Ctrl+Shift+D]
   open_prev: [A, Ctrl+Shift+A]
@@ -105,7 +104,7 @@ shortcuts:
   fit_width: Ctrl+Shift+F
 
   create_polygon: Ctrl+N
-  create_rectangle: Ctrl+R
+  create_rectangle: R
   create_circle: null
   create_line: null
   create_point: null
