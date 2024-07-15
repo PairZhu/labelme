@@ -2028,18 +2028,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setDirty()
 
     def deleteSelectedShape(self):
-        yes, no = QtWidgets.QMessageBox.Yes, QtWidgets.QMessageBox.No
-        msg = self.tr(
-            "You are about to permanently delete {} polygons, " "proceed anyway?"
-        ).format(len(self.canvas.selectedShapes))
-        if yes == QtWidgets.QMessageBox.warning(
-            self, self.tr("Attention"), msg, yes | no, yes
-        ):
-            self.remLabels(self.canvas.deleteSelected())
-            self.setDirty()
-            if self.noShapes():
-                for action in self.actions.onShapesPresent:
-                    action.setEnabled(False)
+        self.remLabels(self.canvas.deleteSelected())
+        self.setDirty()
+        if self.noShapes():
+            for action in self.actions.onShapesPresent:
+                action.setEnabled(False)
 
     def copyShape(self):
         self.canvas.endMove(copy=True)
