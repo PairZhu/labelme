@@ -1591,6 +1591,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.adjustScale()
 
     def onNewColorConvert(self, qimage):
+        self.image = qimage
         self.canvas.loadPixmap(QtGui.QPixmap.fromImage(qimage), clear_shapes=False)
 
     def colorConvertDialog(self, _):
@@ -1669,19 +1670,19 @@ class MainWindow(QtWidgets.QMainWindow):
             self.labelFile = None
         # image = QtGui.QImage.fromData(self.imageData)
         self.timeLine.begin_time, self.timeLine.end_time = beginTime, endTime
-        image = utils.color_convert(self.imageData)
-        # numpy数据转换为QImage
-        image = image = QtGui.QImage(
-            image.tobytes(),
-            image.shape[1],
-            image.shape[0],
-            image.shape[1] * 3,
-            QtGui.QImage.Format_RGB888,
-        )
 
-        self.image = image
+        # set color convert value
+        dialog = ColorConvertDialog(
+            self.imageData,
+            self.onNewColorConvert,
+            parent=self,
+        )
+        if self._config["color_convert"]:
+            dialog.setFormValue(self._config["color_convert"])
+
+        self._config["color_convert"] = dialog.getFormValue()
+
         self.filename = filename
-        self.canvas.loadPixmap(QtGui.QPixmap.fromImage(image))
         flags = {k: False for k in self._config["flags"] or []}
         if self.labelFile:
             self.loadLabels(self.labelFile.shapes)
@@ -1705,16 +1706,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 )
             else:
                 self.setScroll(orientation, 0)
-        # set color convert value
-        dialog = ColorConvertDialog(
-            self.imageData,
-            self.onNewColorConvert,
-            parent=self,
-        )
-        if self._config["color_convert"]:
-            dialog.setFormValue(self._config["color_convert"])
-
-        self._config["color_convert"] = dialog.getFormValue()
 
         self.paintCanvas()
         self.updateTimeLine(None)
