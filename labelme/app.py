@@ -850,7 +850,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.otherData = None
         self.zoom_level = 100
         self.fit_window = False
-        self.zoom_value = None  # (zoom_mode, zoom_value)
+        self.zoom_value = None
         self.scroll_values = {
             Qt.Horizontal: {},
             Qt.Vertical: {},
@@ -1520,7 +1520,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def setScroll(self, orientation, value):
         self.scrollBars[orientation].setValue(int(value))
-        self.scroll_values[orientation][self.filename] = value
+        self.scroll_values[orientation] = value
 
     def setZoom(self, value):
         self.actions.fitWidth.setChecked(False)
@@ -1528,7 +1528,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.zoomMode = self.MANUAL_ZOOM
         self.xZoomWidget.setValue(value[0])
         self.yZoomWidget.setValue(value[1])
-        self.zoom_value = (self.zoomMode, value)
+        self.zoom_value = value
 
     def addZoom(self, increment=(1.1, 1.1)):
         zoom_value = [
@@ -1694,18 +1694,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas.setEnabled(True)
         # set zoom value
         if self.zoom_value:
-            self.zoomMode = self.zoom_value[0]
-            self.setZoom(self.zoom_value[1])
+            self.setZoom(self.zoom_value)
+            if self.scroll_values[Qt.Vertical]:
+                self.setScroll(Qt.Vertical, self.scroll_values[Qt.Vertical])
+            else:
+                self.setScroll(Qt.Vertical, 0)
+            self.setScroll(Qt.Horizontal, 0)
         else:
             self.adjustScale(initial=True)
-        # set scroll values
-        for orientation in self.scroll_values:
-            if self.filename in self.scroll_values[orientation]:
-                self.setScroll(
-                    orientation, self.scroll_values[orientation][self.filename]
-                )
-            else:
-                self.setScroll(orientation, 0)
 
         self.paintCanvas()
         self.updateTimeLine(None)
@@ -1739,7 +1735,7 @@ class MainWindow(QtWidgets.QMainWindow):
         value = (int(value[0] * 100), int(value[1] * 100))
         self.xZoomWidget.setValue(value[0])
         self.yZoomWidget.setValue(value[1])
-        self.zoom_value = (self.zoomMode, value)
+        self.zoom_value = value
 
     def scaleFitWindow(self):
         """Figure out the size of the pixmap to fit the main widget."""
