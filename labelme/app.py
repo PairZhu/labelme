@@ -8,6 +8,7 @@ import os.path as osp
 import re
 import webbrowser
 from datetime import datetime
+from bisect import bisect_left, bisect_right
 
 import imgviz
 import natsort
@@ -1269,7 +1270,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._noSelectionSlot = True
         visible_shapes = []
         for shape in shapes:
-            if self.shapeVisible(shape):
+            if self.shapeVisible(shape) == 0:
                 self.addLabel(shape)
                 visible_shapes.append(shape)
             else:
@@ -1292,22 +1293,6 @@ class MainWindow(QtWidgets.QMainWindow):
             if not points:
                 # skip point-empty shape
                 continue
-
-            for i in range(self.fileListWidget.count()):
-                item = self.fileListWidget.item(i)
-                filename = osp.basename(item.text())
-                filename_no_ext = osp.splitext(filename)[0]
-                begin_time, end_time = filename_no_ext.split("_")[:2]
-                begin_time, end_time = int(begin_time), int(end_time)
-                max_t, min_t = float("-inf"), float("inf")
-                for t, _ in points:
-                    max_t = max(max_t, t)
-                    min_t = min(min_t, t)
-                    if t >= begin_time and t <= end_time:
-                        item.setCheckState(Qt.Checked)
-                        break
-                if min_t < begin_time and max_t > end_time:
-                    item.setCheckState(Qt.Checked)
 
             shape = Shape(
                 label=label,
@@ -1333,6 +1318,31 @@ class MainWindow(QtWidgets.QMainWindow):
 
             s.append(shape)
         self.loadShapes(s)
+
+    def refreshFileListChecked(self):
+        all_shapes = [*self.canvas.shapes, *self.invisible_shapes]
+        file_items = []
+        for i in range(self.fileListWidget.count()):
+            item = self.fileListWidget.item(i)
+            item.setCheckState(Qt.Unchecked)
+            filename = osp.basename(str(item.text()))
+            filename_no_ext = osp.splitext(filename)[0]
+            begin_time, end_time = filename_no_ext.split("_")[:2]
+            begin_x = self.tTox(int(begin_time))
+            end_x = self.tTox(int(end_time))
+            visible_range = (begin_x, end_x)
+            file_items.append((item, visible_range))
+
+        for shape in all_shapes:
+            # 二分法检测shape是否在visible_range内
+            begin = bisect_left(
+                file_items, 0, key=lambda x: -self.shapeVisible(shape, x[1])
+            )
+            end = bisect_right(
+                file_items, 0, key=lambda x: -self.shapeVisible(shape, x[1])
+            )
+            for i in range(begin, end):
+                file_items[i][0].setCheckState(Qt.Checked)
 
     def loadFlags(self, flags):
         self.flag_widget.clear()
@@ -1383,11 +1393,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 flags=flags,
             )
             self.labelFile = lf
-            items = self.fileListWidget.findItems(self.imagePath, Qt.MatchExactly)
-            if len(items) > 0:
-                if len(items) != 1:
-                    raise RuntimeError("There are duplicate files.")
-                items[0].setCheckState(Qt.Checked)
+            self.refreshFileListChecked()
             # disable allows next and previous image to proceed
             # self.filename = filename
             return True
@@ -1451,15 +1457,18 @@ class MainWindow(QtWidgets.QMainWindow):
         x = (t - self.timeLine.begin_time) * pixel_per_time
         return x
 
-    def shapeVisible(self, shape):
-        max_x, min_x = float("-inf"), float("inf")
-        for p in shape.points:
-            x = p.x()
-            max_x = max(max_x, x)
-            min_x = min(min_x, x)
-            if x >= 0 and x <= self.canvas.pixmap.width():
-                return True
-        return min_x < 0 and max_x > self.canvas.pixmap.width()
+    def shapeVisible(self, shape, visible_range=None):
+        if visible_range is None:
+            visible_range = [0, self.canvas.pixmap.width()]
+        left, right = visible_range
+        min_x = min(p.x() for p in shape.points)
+        max_x = max(p.x() for p in shape.points)
+        if min_x <= right and max_x >= left:
+            return 0
+        elif min_x > right:
+            return 1
+        else:
+            return -1
 
     # Callback functions:
 
@@ -1676,6 +1685,7 @@ class MainWindow(QtWidgets.QMainWindow):
         flags = {k: False for k in self._config["flags"] or []}
         if self.labelFile:
             self.loadLabels(self.labelFile.shapes)
+            self.refreshFileListChecked()
             if self.labelFile.flags is not None:
                 flags.update(self.labelFile.flags)
         self.loadFlags(flags)
