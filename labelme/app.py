@@ -1293,6 +1293,22 @@ class MainWindow(QtWidgets.QMainWindow):
                 # skip point-empty shape
                 continue
 
+            for i in range(self.fileListWidget.count()):
+                item = self.fileListWidget.item(i)
+                filename = osp.basename(item.text())
+                filename_no_ext = osp.splitext(filename)[0]
+                begin_time, end_time = filename_no_ext.split("_")[:2]
+                begin_time, end_time = int(begin_time), int(end_time)
+                max_t, min_t = float("-inf"), float("inf")
+                for t, _ in points:
+                    max_t = max(max_t, t)
+                    min_t = min(min_t, t)
+                    if t >= begin_time and t <= end_time:
+                        item.setCheckState(Qt.Checked)
+                        break
+                if min_t < begin_time and max_t > end_time:
+                    item.setCheckState(Qt.Checked)
+
             shape = Shape(
                 label=label,
                 shape_type=shape_type,
