@@ -1664,7 +1664,19 @@ class MainWindow(QtWidgets.QMainWindow):
             self.imagePath = filename
             self.otherData = self.labelFile.otherData
         else:
-            self.imageData, beginTime, endTime = LabelFile.load_image_file(filename)
+            try:
+                self.imageData, beginTime, endTime = LabelFile.load_image_file(filename)
+            except LabelFileError as e:
+                self.errorMessage(
+                    self.tr("Error opening file"),
+                    self.tr(
+                        "<p><b>%s</b></p>"
+                        "<p>Make sure <i>%s</i> is a valid data file."
+                    )
+                    % (e, filename),
+                )
+                self.status(self.tr("Error reading %s") % filename)
+                return False
             if self.imageData is not None:
                 self.imagePath = filename
             self.labelFile = None
@@ -1764,19 +1776,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings.setValue("window/state", self.saveState())
         self.settings.setValue("recentFiles", self.recentFiles)
         save_config(self._config)
-
-    def dragEnterEvent(self, event):
-        extensions = [
-            ".dat",
-        ]
-        if event.mimeData().hasUrls():
-            items = [i.toLocalFile() for i in event.mimeData().urls()]
-            if any([i.lower().endswith(tuple(extensions)) for i in items]):
-                event.accept()
-        else:
-            event.ignore()
-
-    # User Dialogs #
 
     def loadRecent(self, filename):
         if self.mayContinue():
@@ -2036,11 +2035,21 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.mayContinue() or not dirpath:
             return
 
+        filenames = self.scanAllImages(dirpath)
+        if not filenames:
+            self.errorMessage(
+                self.tr("No file found"),
+                self.tr(
+                    "No valid data files found in directory <br> <b>%s</b> <br> with the specified extensions"
+                )
+                % dirpath,
+            )
+            return
+
         self.lastOpenDir = dirpath
         self.filename = None
         self.fileListWidget.clear()
 
-        filenames = self.scanAllImages(dirpath)
         if pattern:
             try:
                 filenames = [f for f in filenames if re.search(pattern, f)]
@@ -2059,10 +2068,13 @@ class MainWindow(QtWidgets.QMainWindow):
         ]
 
         images = []
-        for root, dirs, files in os.walk(folderPath):
-            for file in files:
-                if file.lower().endswith(tuple(extensions)):
-                    relativePath = os.path.normpath(osp.join(root, file))
-                    images.append(relativePath)
+        for file in os.listdir(folderPath):
+            try:
+                _ = LabelFile.get_file_params(file)
+            except LabelFileError:
+                continue
+            if file.lower().endswith(tuple(extensions)):
+                relativePath = os.path.normpath(osp.join(folderPath, file))
+                images.append(relativePath)
         images = natsort.os_sorted(images)
         return images

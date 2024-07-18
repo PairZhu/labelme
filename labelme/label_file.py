@@ -43,17 +43,27 @@ class LabelFile(object):
         self.filename = filename
 
     @staticmethod
+    def get_file_params(filename):
+        file_name_without_ext = osp.splitext(osp.basename(filename))[0]
+        file_params = file_name_without_ext.split("_")
+        if len(file_params) < 3:
+            raise LabelFileError("Too few parameters in file name.")
+        begin_time = int(file_params[0])
+        end_time = int(file_params[1])
+        point_len = int(file_params[2])
+        dtype_str = "<i2"
+        if len(file_params) > 3:
+            dtype_str = file_params[3].replace("l-", "<").replace("b-", ">")
+        if begin_time >= end_time:
+            raise LabelFileError("Invalid time range.")
+        if point_len <= 0:
+            raise LabelFileError("Invalid point length.")
+        return begin_time, end_time, point_len, dtype_str
+
+    @staticmethod
     def load_image_file(filename):
+        begin_time, end_time, point_len, dtype_str = LabelFile.get_file_params(filename)
         try:
-            file_name_without_ext = osp.splitext(osp.basename(filename))[0]
-            file_params = file_name_without_ext.split("_")
-            assert len(file_params) >= 3, "Invalid file name format."
-            begin_time = int(file_params[0])
-            end_time = int(file_params[1])
-            point_len = int(file_params[2])
-            dtype_str = "<i2"
-            if len(file_params) > 3:
-                dtype_str = file_params[3].replace("l-", "<").replace("b-", ">")
             img_data = np.fromfile(filename, dtype=dtype_str)
             img_data = img_data.reshape(-1, point_len).T
         except IOError:
