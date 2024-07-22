@@ -1333,14 +1333,22 @@ class MainWindow(QtWidgets.QMainWindow):
             visible_range = (begin_x, end_x)
             file_items.append((item, visible_range))
 
+        class ComparableList:
+            def __init__(self, lst, key):
+                self.lst = lst
+                self.key = key
+
+            def __getitem__(self, index):
+                return self.key(self.lst[index])
+
+            def __len__(self):
+                return len(self.lst)
+
         for shape in all_shapes:
             # 二分法检测shape是否在visible_range内
-            begin = bisect_left(
-                file_items, 0, key=lambda x: -self.shapeVisible(shape, x[1])
-            )
-            end = bisect_right(
-                file_items, 0, key=lambda x: -self.shapeVisible(shape, x[1])
-            )
+            cmp_lst = ComparableList(file_items, key=lambda x: -self.shapeVisible(shape, x[1]))
+            begin = bisect_left(cmp_lst, 0)
+            end = bisect_right(cmp_lst, 0)
             for i in range(begin, end):
                 file_items[i][0].setCheckState(Qt.Checked)
 
