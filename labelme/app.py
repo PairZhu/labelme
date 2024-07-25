@@ -1182,7 +1182,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.mayContinue():
             return
 
-        currIndex = self.imageList.index(str(item.text()))
+        currIndex = self.imageList.index(item.data(Qt.UserRole))
         if currIndex < len(self.imageList):
             filename = self.imageList[currIndex]
             if filename:
@@ -1325,7 +1325,7 @@ class MainWindow(QtWidgets.QMainWindow):
         for i in range(self.fileListWidget.count()):
             item = self.fileListWidget.item(i)
             item.setCheckState(Qt.Unchecked)
-            filename = osp.basename(str(item.text()))
+            filename = osp.basename(str(item.data(Qt.UserRole)))
             filename_no_ext = osp.splitext(filename)[0]
             begin_time, end_time = filename_no_ext.split("_")[:2]
             begin_x = self.tTox(int(begin_time))
@@ -1346,7 +1346,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         for shape in all_shapes:
             # 二分法检测shape是否在visible_range内
-            cmp_lst = ComparableList(file_items, key=lambda x: -self.shapeVisible(shape, x[1]))
+            cmp_lst = ComparableList(
+                file_items, key=lambda x: -self.shapeVisible(shape, x[1])
+            )
             begin = bisect_left(cmp_lst, 0)
             end = bisect_right(cmp_lst, 0)
             for i in range(begin, end):
@@ -2033,7 +2035,7 @@ class MainWindow(QtWidgets.QMainWindow):
         lst = []
         for i in range(self.fileListWidget.count()):
             item = self.fileListWidget.item(i)
-            lst.append(item.text())
+            lst.append(item.data(Qt.UserRole))
         return lst
 
     def importDirImages(self, dirpath, pattern=None, load=True):
@@ -2064,7 +2066,12 @@ class MainWindow(QtWidgets.QMainWindow):
             except re.error:
                 pass
         for filename in filenames:
-            item = QtWidgets.QListWidgetItem(filename)
+            timestamp = osp.basename(filename).split("_")[0]
+            dateStr = datetime.fromtimestamp(int(timestamp) / 1000).strftime(
+                "%Y-%m-%d %H:%M:%S.%f"
+            )[:-3]
+            item = QtWidgets.QListWidgetItem(dateStr)
+            item.setData(Qt.UserRole, filename)
             item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
             item.setCheckState(Qt.Unchecked)
             self.fileListWidget.addItem(item)
