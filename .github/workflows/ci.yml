@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - das
   pull_request:
 
 jobs:
@@ -21,7 +22,7 @@ jobs:
       with:
         submodules: true
 
-    - uses: conda-incubator/setup-miniconda@v2
+    - uses: conda-incubator/setup-miniconda@v3
       with:
         auto-update-conda: true
         python-version: ${{ matrix.python-version }}
