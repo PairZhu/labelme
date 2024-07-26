@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - das
   pull_request:
 
 jobs:
@@ -17,7 +18,7 @@ jobs:
         PYTEST_QT_API: [pyqt5, pyside2]
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         submodules: true
 
