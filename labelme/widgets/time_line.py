@@ -1,9 +1,9 @@
+import math
+from datetime import datetime
+
 from qtpy import QtCore
 from qtpy import QtGui
 from qtpy import QtWidgets
-from datetime import datetime
-
-import math
 
 
 class TimeLine(QtWidgets.QWidget):

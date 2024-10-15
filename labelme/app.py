@@ -7,8 +7,9 @@ import os
 import os.path as osp
 import re
 import webbrowser
+from bisect import bisect_left
+from bisect import bisect_right
 from datetime import datetime
-from bisect import bisect_left, bisect_right
 
 import imgviz
 import natsort
@@ -20,18 +21,19 @@ from qtpy.QtCore import Qt
 from labelme import PY2
 from labelme import __appname__
 from labelme.ai import MODELS
-from labelme.config import get_config, save_config
+from labelme.config import get_config
+from labelme.config import save_config
 from labelme.label_file import LabelFile
 from labelme.label_file import LabelFileError
 from labelme.logger import logger
 from labelme.shape import Shape
-from labelme.widgets import ColorConvertDialog
 from labelme.widgets import Canvas
-from labelme.widgets import TimeLine
+from labelme.widgets import ColorConvertDialog
 from labelme.widgets import FileDialogPreview
 from labelme.widgets import LabelDialog
 from labelme.widgets import LabelListWidget
 from labelme.widgets import LabelListWidgetItem
+from labelme.widgets import TimeLine
 from labelme.widgets import ToolBar
 from labelme.widgets import UniqueLabelQListWidget
 from labelme.widgets import ZoomWidget
@@ -1785,7 +1787,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # The epsilon does not seem to work too well here.
         w1 = self.scrollArea.width() - self.scrollBars[Qt.Vertical].width() - 2
         w2 = self.canvas.pixmap.width()
-        h = self.scrollArea.width()
         return (w1 / w2, 1)
 
     def closeEvent(self, event):
@@ -2061,7 +2062,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.errorMessage(
                 self.tr("No file found"),
                 self.tr(
-                    "No valid data files found in directory <br> <b>%s</b> <br> with the specified extensions"
+                    "No valid data files found in directory <br> <b>%s</b> <br>"
+                    " with the specified extensions"
                 )
                 % dirpath,
             )
