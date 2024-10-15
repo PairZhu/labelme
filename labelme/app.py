@@ -921,7 +921,18 @@ class MainWindow(QtWidgets.QMainWindow):
         time_str = datetime.fromtimestamp(time_stamp).strftime("%Y-%m-%d_%H:%M:%S.%f")[
             :-3
         ]
-        self.status(f"T: {time_str}, Y: {int(pos.y())}")
+        # 获取当前坐标的强度值
+        x = round(pos.x())
+        y = round(pos.y())
+        intensity = None
+        if (
+            x >= 0
+            and x < self.canvas.pixmap.width()
+            and y >= 0
+            and y < self.canvas.pixmap.height()
+        ):
+            intensity = self.imageData[int(y), int(x)]
+        self.status(f"T: {time_str}, Y: {y}, X: {x}, I: {intensity}")
 
     def menu(self, title, actions=None):
         menu = self.menuBar().addMenu(title)
